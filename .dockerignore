@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+notebooks/
+datasets/ecg-images/
+datasets/echo/
+datasets/framingham/gradcam_samples/
+checkpoints/ecg_vit_unweighted_backup.pt
+heart_digital_twin_3d/node_modules/
+heart_digital_twin_3d/dist/
+checkpoints/fusion_ensemble.pt
+checkpoints/ft_transformer_federated.pt
+checkpoints/digital_twin.joblib
+mobile_app/backend/app.db

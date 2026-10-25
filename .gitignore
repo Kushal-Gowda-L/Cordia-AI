@@ -1,0 +1,33 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.bak
+
+# Secrets
+.env
+.env.*
+kaggle.json
+
+# Patient database and its backups (never commit)
+mobile_app/backend/app.db*
+*.db
+*.sqlite*
+
+# Large checkpoints over GitHub's 100 MB limit (ViT-B/16 weights, ~346 MB each)
+checkpoints/ecg_vit.pt
+checkpoints/ecg_vit_unweighted_backup.pt
+checkpoints/cxr_vit.pt
+
+# Credentialed / no-redistribution imaging data (PhysioNet DUA, Stanford AIMI agreement)
+datasets/paired/
+datasets/mri/
+datasets/xray/
+datasets/ct/
+datasets/echo/
+
+# 3D twin frontend build output
+heart_digital_twin_3d/node_modules/
+heart_digital_twin_3d/dist/
+*.tsbuildinfo

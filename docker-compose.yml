@@ -1,0 +1,31 @@
+# Pragmatic deployment packaging for what's actually built: FastAPI +
+# SQLite (the mobile app), plus Ollama for the offline AI summary feature.
+# This is NOT the methodology's full production stack (PostgreSQL, MLflow,
+# Nginx reverse proxy) -- that's a further step beyond what this project
+# needs at its current scale; see README.md's "Build phases" step 11 for
+# why that fuller stack wasn't built. Not run-tested here (Docker isn't
+# installed on the machine this was written on) -- see Dockerfile's header.
+services:
+  cordia-app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_db:/app/data
+    environment:
+      - CORDIA_DB_PATH=/app/data/app.db
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    # First run only: `docker compose exec ollama ollama pull llama3.2:3b`
+
+volumes:
+  app_db:
+  ollama_models:

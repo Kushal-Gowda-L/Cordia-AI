@@ -1,0 +1,247 @@
+# CordiaAI — Digital Twin of a Heart (interactive 3D)
+
+An educational, scientifically-inspired **interactive 3D cardiovascular digital twin**, built with
+React, Three.js (via React Three Fiber + drei), TypeScript, and Recharts. Not a diagnostic or
+clinical medical device — this is stated inside the app itself, not just here.
+
+## Run it locally
+
+```bash
+cd cordia_ai/heart_digital_twin_3d
+npm install
+npm run dev
+```
+
+Then open the URL Vite prints (default `http://localhost:5173`).
+
+## Per-patient digital twin (inside CordiaAI)
+
+Opened from a patient's report in the CordiaAI web app (the **Digital twin** button), the twin loads
+that patient's record and sets every simulation parameter from it. `npm run build` produces `dist/`,
+which the FastAPI backend serves at `/twin/` — the same origin as the main app — so it reuses the
+logged-in session. `?patient=<id>` loads one of a doctor's patients; `?self=1` loads a patient's own
+record. The record-to-physiology mapping lives server-side in
+[`src/patient_twin.py`](../src/patient_twin.py) (`GET /api/patients/{id}/twin`, `GET /api/me/twin`).
+
+Each patient gets two scenarios, switchable in the panel:
+
+| Parameter | At rest | Peak exercise (stress test) |
+|---|---|---|
+| Heart rate | Typical 72 BPM — the record's `thalach` is the stress-test peak, not a resting rate | From record: `thalach` |
+| Systolic BP | From record: `trestbps` | Estimated: resting value plus a typical rise with heart rate |
+| Diastolic BP | Typical 80 mmHg (the record holds systolic only) | Same |
+| Stroke volume | Estimated: typical adult value by sex | Same |
+| Vascular resistance | Estimated from BP, age (arterial stiffening) and fasting blood sugar | Lowered for exercise vasodilation |
+| Afterload | Estimated from BP; raised for LV hypertrophy on the resting ECG | Same |
+| Contractility | Estimated: reduced with the risk model's predicted severity and a resting ST-T abnormality | +20 for exercise inotropy, minus exercise ischemia (`exang`, `oldpeak`) |
+| Preload | Typical value | Raised for exercise venous return |
+| Oxygen saturation | Typical value | Same |
+
+The panel badges every value as **From record**, **Estimated** or **Typical value**, and hovering a
+row shows its exact rule. Cholesterol has no direct hemodynamic parameter, so it informs the risk
+prediction but not the simulation. Run against the stored patients, the mapping separates them the
+way the records say it should — e.g. a patient with exercise angina and 4.3 mm ST depression drops to
+contractility 12 at peak exercise, while one with a clean stress test rises from 55 to 67.
+
+Stated plainly: these records contain no echo, chamber-volume or pressure-volume data, which is what a
+clinically calibrated cardiac digital twin is fitted to. This twin is patient-specific in its inputs,
+not a validated model of that patient's heart.
+
+### What-if controls and graphs
+
+The controls are the same ten fields the risk model is trained on, in everyday wording with the
+clinical term alongside ([`src/patient/inputFields.ts`](src/patient/inputFields.ts)). Each change is
+debounced and sent to `POST /api/twin/what-if`, which re-runs the real model and re-derives both
+scenarios from the changed inputs; responses to superseded requests are dropped, so a fast slider
+drag can't apply an out-of-date result. Inputs that directly set part of the heart are marked with
+a heart; the rest (chest pain type, cholesterol) change the risk estimate and reach the heart only
+through the predicted severity. Changing an exercise-test value switches to the exercising heart.
+The saved record is never modified; "Reset to record" restores it. Two charts track the effect — the
+severity breakdown, record vs. now, and the chance of heart disease after each change.
+
+### Making changes visible on the heart
+
+Most inputs change the heart by a few percent, which was invisible: chamber size was drawn with a
+cube root of volume and the wall followed it at 28%, so a recorded heart and one at 180 mm Hg moved
+their LV wall 4% vs. 3% per beat. Three changes make a what-if readable:
+
+- **Change vs. record.** On load and after every change, both scenarios are run to steady state
+  off-screen ([`src/simulation/steadyState.ts`](src/simulation/steadyState.ts), 20 s of simulated
+  time). Each vital card shows ▲/▼ against the record, coloured by whether the direction is better
+  or worse for the heart (heart rate is neutral); under 1 unit reads "Same as record".
+- **Stronger squeeze.** Chamber size is `clamp((V / Vref)^0.6, 0.5, 1.3)` and the wall follows 65% of
+  it; the intact (Outside) heart pulses with total ventricular volume. The same comparison now moves
+  the LV wall 15% vs. 11% per beat.
+- **Strain glow.** The muscle glows red with intensity `min(0.9, 2.2 × (workload / record workload − 1))`,
+  eased in over about a second — e.g. blood pressure 139 → 180 raises workload 29% and gives a clear glow.
+
+### Patient view (`?self=1`)
+
+Opened from a patient's own account, the twin uses plain wording ("Resting" / "Being active", "your
+results"), hides the severity breakdown, and offers only blood pressure (with its everyday band) and
+high blood sugar as controls; everything else stays as the clinic recorded it. "Back to my results"
+restores the record.
+
+## 1. How the physiological model works
+
+Everything in the app — the 3D heart, blood-flow particles, ECG, pressure graph, and dashboard —
+reads from **one shared simulation state**, computed in [`src/simulation/heartModel.ts`](src/simulation/heartModel.ts)
+and advanced every animation frame by [`SimulationDriver`](src/components/Heart3D/SimulationDriver.tsx).
+Nothing is independently animated; every visual is a function of that live state.
+
+The core of the model is a **time-varying elastance simulation**, run separately for the left
+ventricle (systemic circuit) and right ventricle (pulmonary circuit) — the same family of
+equations used throughout cardiovascular modelling (the Suga-Sagawa formulation) and the same
+approach already validated in this project's standalone Python prototype
+(`digital_twin_heart_simulation.py`), ported to TypeScript and extended to a genuine two-ventricle
+simulation:
+
+- **Elastance** `E(t)` oscillates every beat between a relaxed value (`Emin`) and a contracted value
+  (`Emax`), and instantaneous ventricular pressure is `P = E(t) x (V - V_dead)`.
+- **Valves** (mitral, tricuspid, aortic, pulmonic) are modelled as one-way flow resistors:
+  `Q = max(0, ΔP / R)` — blood only flows the correct direction, only when the pressure gradient
+  favors it. This is what makes the valve indicators open/close correctly and what makes
+  regurgitation and stenosis mechanically real rather than cosmetic.
+- Each ventricle drains into a **Windkessel arterial compartment** (aortic for the LV, pulmonary
+  for the RV): `dP_arterial/dt = (Q_out - P_arterial / R_systemic) / C_arterial`.
+- The whole state is integrated with **RK4** (4th-order Runge-Kutta), the same integrator used in
+  the Python prototype, re-run every frame with the real elapsed time (`delta`) from Three.js's
+  render loop, capped and clamped for numerical stability under extreme slider combinations (see
+  §3).
+- **Atrial systole** is modelled as a brief pressure "kick" added to atrial pressure shortly after
+  the P wave — this produces the real late-diastolic filling boost and the "a wave" seen in real
+  atrial pressure tracings, without a full second elastance chamber.
+- **Electrical timing**: `tFrac = 0` is defined as SA-node firing (start of the P wave) — the
+  standard ECG reference point. Every other event (AV node, Bundle of His, bundle branches,
+  Purkinje fibers, QRS, ventricular contraction onset, T wave) is timed relative to it in
+  [`CONDUCTION_TIMING`](src/simulation/heartModel.ts), so the ECG, the electrical-conduction
+  animation, and the mechanical contraction all stay genuinely synchronized — not just sharing a
+  period.
+
+### Validated behaviour
+
+The model was run headlessly to steady state (60 s of simulated time) for each preset and the
+settled values checked against normal physiological ranges. Results are stable across timestep
+sizes from 1/120 s to 1/50 s (EDV varies by 0 mL, cardiac output by 0.1 L/min), so the explicit
+RK4 integrator is well-behaved at real browser frame rates.
+
+| Case | EDV (mL) | ESV (mL) | SV (mL) | EF (%) | CO (L/min) | Peak LV (mmHg) |
+|---|---|---|---|---|---|---|
+| Normal | 150 | 69 | 81 | 54 | 5.8 | 106 |
+| Tachycardia (150 BPM) | 129 | 74 | 55 | 43 | 8.3 | 89 |
+| Bradycardia (45 BPM) | 158 | 60 | 98 | 62 | 4.4 | 109 |
+| Reduced contractility | 152 | 115 | 36 | 24 | 2.6 | 69 |
+| High preload | 181 | 83 | 99 | 54 | 7.1 | 129 |
+| Low preload | 123 | 58 | 65 | 53 | 4.7 | 85 |
+| Increased afterload | 151 | 89 | 61 | 41 | 4.4 | 140 |
+| Hypertension | 151 | 98 | 53 | 35 | 3.8 | 154 |
+| Heart failure | 173 | 147 | 25 | 15 | 2.4 | 85 |
+
+Normal values sit inside the textbook ranges (EDV 120-170, ESV 50-70, EF 50-70%, CO 4-8 L/min),
+and every preset moves in the physiologically correct direction: raising heart rate shortens
+filling and drops stroke volume while still raising cardiac output; raising preload raises
+end-diastolic volume (Frank-Starling); raising afterload raises the pressure the ventricle must
+generate while reducing what it ejects; reducing contractility raises end-systolic volume and
+collapses ejection fraction.
+
+These numbers are a calibration check on the model's internal consistency, not a claim of
+clinical accuracy.
+
+## 2. How each physiological parameter affects the simulation
+
+These are the simulation's internal parameters. In the current app they are not user sliders:
+they are derived from the patient's ten inputs (see "Per-patient digital twin" above) and shown,
+with their source, under "How the heart model is set up". Every dependent value is recalculated
+from them every frame — nothing is hard-coded independently.
+
+| Slider | What it changes mechanically |
+|---|---|
+| **Heart rate** | Sets the cardiac cycle duration (`60 / HR`). A shorter cycle means less time for ventricular filling and a visibly faster beat, ECG, and particle flow. |
+| **Stroke volume** | Baseline pump strength (scales `Emax`). The *displayed* stroke volume is always the simulation's actual `EDV - ESV` from the live beat, not this raw slider value — see §3. |
+| **Systolic / diastolic BP** | Combined into a target mean arterial pressure (`MAP = DBP + (SBP-DBP)/3`), which is used to solve for the baseline systemic resistance via `MAP = CO x TPR` — a real hemodynamic identity, not an arbitrary mapping. |
+| **Contractility** | Scales `Emax` directly (0.5x-2x) — the inotropic state. Higher contractility raises peak ventricular pressure and ejection fraction for the same filling volume. |
+| **Preload** | Scales atrial pressure (`P_LA`, `P_RA`), which drives filling via the mitral/tricuspid resistor equations — higher preload means more filling, i.e. Frank-Starling behavior, without hard-coding EDV directly. |
+| **Afterload** | Scales the resistance the ventricle ejects against, on top of vascular resistance — higher afterload makes ejection harder, which (via the same ODEs) reduces stroke volume unless compensated by contractility. |
+| **Oxygen saturation** | Currently a display/legend value (visualized via the blood-flow particle color legend); it does not yet feed back into the mechanical simulation — an explicit simplification (see §3). |
+| **Vascular resistance** | Scales systemic resistance directly — combines with cardiac output to set arterial pressure, exactly as in real hemodynamics. |
+
+The model also has valve-disease terms — **aortic stenosis** narrows the aortic valve's effective
+resistance (`R_effective = R / (1 - severity x 0.85)`), which mechanically forces LV pressure well
+above aortic pressure during ejection (the real transvalvular gradient), and **mitral
+regurgitation** adds a backward leak term (`Q_regurg`) active only while LV pressure exceeds LA
+pressure during systole. They are not exposed in the current app, because the patient records hold
+no valve data; the earlier disease presets that used them were removed with the physiology sliders.
+
+## 3. What's scientifically simplified
+
+Stated honestly, the same way every other part of this project documents its limitations:
+
+- **Two ventricles are fully simulated; the atria are not.** Atrial "contraction" is a pressure
+  kick, not a separate elastance chamber with its own volume ODE — a deliberate simplification to
+  keep the app real-time and maintainable, not a hidden shortcut.
+- **Numerical stability clamps.** The valve-flow resistors are deliberately small (real valve
+  orifices are low-resistance), which makes the explicit RK4 integrator stiff under extreme slider
+  combinations (e.g. severe aortic stenosis at high contractility). Rather than a fully adaptive
+  substepping integrator, ventricular volume and pressure are hard-clamped to the outer edge of
+  plausible human physiology (e.g. LV/RV pressure capped at 350 mmHg, arterial pressure at 300
+  mmHg). This is both a numerical-stability guard and a literal implementation of spec requirement
+  "prevent impossible combinations where practical."
+- **Oxygen saturation is not yet mechanically coupled** — it's visualized (blood-flow particle
+  color legend, dashboard card) but doesn't currently feed back into contractility or resistance
+  the way real hypoxia would.
+- **Right-heart pressures use the same elastance/valve/Windkessel structure as the left heart**,
+  just with different (lower-pressure, higher-compliance) constants — a legitimate simplification,
+  not a separately-tuned/hand-animated system, but real right-heart afterload is dominated by
+  pulmonary vascular resistance in ways this model only coarsely approximates (fixed ratio of
+  systemic resistance rather than an independently modeled pulmonary circulation).
+- **Anatomy is procedurally generated**, not a segmented CT/MRI mesh. No licensed or public-domain
+  high-fidelity heart mesh was available to bundle, so each chamber is its own parametric
+  thick-walled shell ([`heartGeometry.ts`](src/components/Heart3D/heartGeometry.ts)), opened at the
+  front so the cut rim shows wall thickness (LV 0.14 vs RV 0.055 scene units, as in real anatomy).
+  The chambers are kept as separate structures so each one reads distinctly. It is a stylized
+  approximation, the same honesty policy applied to this project's earlier matplotlib prototype.
+  Coronary vessels are not modeled.
+- **Great-vessel layout** follows the textbook anterior view: the aorta arches posteriorly toward
+  the patient's left (brachiocephalic, left common carotid, left subclavian branching in that
+  order), and the pulmonary trunk crosses anterior to the ascending aorta before bifurcating.
+  Vessels are separate tubes plugged into the mass, not part of the distance field, so blood-flow
+  particles can travel visibly inside them.
+- **Blood-flow particles** move along one fixed, pre-authored closed-loop curve through all four
+  chambers and the great vessels; their *speed* through each zone is driven by the live valve flow
+  rates (so they visibly slow/stall when a valve is closed), but the path geometry itself is not
+  derived from the vessel meshes.
+- **Cardiac cycle phase proportions are fixed fractions of the beat period**, not derived from
+  first-principles electrophysiology — so at very high heart rates, both systole and diastole
+  shrink proportionally, whereas real hearts shorten diastole disproportionately more than systole.
+  This is the same simplification already disclosed in the earlier Python prototype.
+- **Presets are simplified educational patterns**, explicitly labeled in the UI as "not medically
+  validated patient models" — they demonstrate a pathophysiological *direction* (e.g. "aortic
+  stenosis raises LV pressure"), not a diagnosed patient's actual hemodynamics.
+
+## 4. Connecting to real patient data (future direction)
+
+A first step is already built: the parameters are set from each patient's stored record and the
+risk model's prediction (see "Per-patient digital twin"), not from manual sliders. `HeartParams` is
+a plain, serializable object and the visual layer is a pure function of `HeartOutputs`, so going
+further means feeding better measurements into the same mapping:
+
+1. **Use measured values where the record only allows estimates.** Resting heart rate, diastolic
+   pressure and oxygen saturation are typical values today because the record doesn't hold them; a
+   bedside monitor or wearable feed could supply them directly through `src/patient_twin.py`.
+2. **Fit `contractility`/`preload`/`afterload` from echocardiographic measurements** (e.g.
+   ejection fraction, E/A ratio) instead of estimating them by rule — this project's
+   planned Echo branch (EchoNet-Dynamic, still blocked on the user's own Stanford AIMI
+   registration per the main README) would be the natural source.
+3. **Use the ECG branch's diagnosis too.** The predicted severity already lowers contractility;
+   the ECG ViT's classes (e.g. hypertrophy, conduction disturbance) could adjust the relevant
+   parameters in the same way once an uploaded ECG is linked to a patient record.
+4. **Replace the procedural mesh with a real segmented anatomy** once a licensed or public-domain
+   patient-specific mesh (e.g. derived from cardiac MRI segmentation) is available, keeping the
+   same `HeartOutputs`-driven scaling/coloring logic.
+5. **Add per-patient calibration** — right now `HeartSimulation`'s constants (`V_dead`, `Emax`
+   baseline, resistances) are population-typical, not patient-specific; a real digital twin would
+   fit these from that patient's own measured PV loop or imaging data, the same direction already
+   explored in this project's Synthea-based longitudinal digital twin (`build_digital_twin_synthea.py`).
+
+Items 1–5 are not implemented; they describe the extension path beyond the record-based
+parameterisation that is.

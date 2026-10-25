@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-physics heart twin</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  /* Page-specific layout; colours come from style.css tokens. Chart series use the
+     validated categorical order: slot 1 blue, slot 2 orange, slot 3 aqua. */
+  :root {
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+    --baseline: #8a96a3; --grid: #e6eaef; --blood: #e34948; --fat: #eda100;
+  }
+  body { background: var(--bg); }
+  .hp-wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+  .hp-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .hp-head h1 { font-size: 20px; margin: 0 0 2px; }
+  .hp-note { background: var(--warn-soft); color: var(--warn); border: 1px solid #f0d9ad; border-radius: 8px; padding: 8px 12px; font-size: 13.5px; margin: 10px 0 14px; }
+  .hp-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; }
+  @media (max-width: 960px) { .hp-grid { grid-template-columns: 1fr; } }
+  .hp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-width: 0; }
+  .hp-card h2 { font-size: 15px; margin: 0 0 8px; }
+  .hp-card h3 { font-size: 13.5px; margin: 12px 0 6px; }
+  #viewer { position: relative; height: 520px; border-radius: 8px; overflow: hidden; background: #e9eef3; }
+  #viewer canvas { display: block; }
+  .viewer-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 13.5px; }
+  .viewer-bar select, .viewer-bar input { font: inherit; font-size: 13.5px; }
+  .legend-bar { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); margin-top: 8px; flex-wrap: wrap; }
+  .legend-ramp { width: 180px; height: 10px; border-radius: 3px; border: 1px solid var(--border); }
+  .time-readout { position: absolute; left: 10px; top: 8px; color: #e8eef5; font-size: 12.5px; font-family: var(--font-mono); background: rgba(0,0,0,.35); padding: 2px 8px; border-radius: 4px; }
+  .controls .row { display: grid; grid-template-columns: 1fr 130px 54px; gap: 8px; align-items: center; font-size: 13.5px; margin: 6px 0; }
+  .controls .row output { font-family: var(--font-mono); font-size: 12.5px; text-align: right; }
+  .controls select { font: inherit; font-size: 13.5px; width: 100%; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+  .stat { border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--surface-2); }
+  .stat .k { font-size: 12px; color: var(--text-dim); }
+  .stat .v { font-size: 17px; font-weight: 600; }
+  .stat .d { font-size: 12px; color: var(--text-dim); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
+  .chart { position: relative; }
+  .chart canvas { width: 100%; height: 230px; display: block; }
+  .chart .legend { display: flex; gap: 12px; font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; flex-wrap: wrap; }
+  .chart .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; padding: 4px 8px; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
+  table.src { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.src td, table.src th { border-bottom: 1px solid var(--border); padding: 4px 6px; text-align: left; vertical-align: top; }
+  .scope li { font-size: 13px; margin-bottom: 4px; }
+  .upload { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px; }
+  .upload input { width: 100%; max-width: 100%; box-sizing: border-box; }
+  .upload label { display: block; font-weight: 500; margin-bottom: 2px; }
+  .err { color: var(--danger); font-size: 13px; }
+  .busy { opacity: .6; }
+</style>
+<script type="importmap">{"imports": {"three": "/static/vendor/three/three.module.min.js"}}</script>
+</head>
+<body>
+<div class="hp-wrap">
+  <div class="hp-head">
+    <div>
+      <h1>Multi-physics heart twin</h1>
+      <div class="muted" id="hp-source">Loading the heart…</div>
+    </div>
+    <div><button class="btn" id="btn-reset">Reset what-ifs</button></div>
+  </div>
+  <div class="hp-note" id="hp-note">Illustrative model, not a clinical simulation.</div>
+
+  <div class="hp-grid">
+    <div class="hp-card">
+      <div id="viewer"><div class="time-readout" id="time-readout">t = 0 ms</div></div>
+      <div class="viewer-bar">
+        <label>Colour by
+          <select id="color-mode">
+            <option value="live">Electrical wave (animated)</option>
+            <option value="activation">Activation time</option>
+            <option value="repolarisation">Repolarisation time</option>
+            <option value="thickness">Wall thickness (end-diastole)</option>
+            <option value="thickening">Wall thickening, ED→ES (measured)</option>
+            <option value="helix">Muscle fibre angle (rule-based)</option>
+            <option value="contracts">Contracting muscle / scar</option>
+          </select>
+        </label>
+        <button class="btn" id="btn-play">Pause</button>
+        <label>Speed <select id="speed"><option value="0.15">0.15×</option><option value="0.3" selected>0.3×</option><option value="1">1×</option></select></label>
+        <label><input type="checkbox" id="show-flow" checked> Blood flow</label>
+        <label><input type="checkbox" id="show-rv" checked> RV cavity</label>
+        <label><input type="checkbox" id="show-fat"> Fat layer</label>
+        <label>Fat <input type="range" id="fat-mm" min="0" max="8" step="0.5" value="3" style="width:80px"> <span id="fat-mm-out">3 mm</span></label>
+      </div>
+      <div class="legend-bar" id="legend"></div>
+      <p class="muted" style="font-size:12.5px;margin:6px 0 0" id="mode-note"></p>
+    </div>
+
+    <div class="hp-card controls" id="controls">
+      <h2>What if…</h2>
+      <div class="row"><span>Conduction</span>
+        <select id="w-conduction" style="grid-column: span 2">
+          <option value="normal">Normal (Purkinje)</option>
+          <option value="lbbb">Left bundle branch block</option>
+          <option value="rv_pacing">RV apex pacing</option>
+          <option value="crt">CRT: LBBB + LV lateral lead</option>
+        </select></div>
+      <div id="sliders"></div>
+      <div class="row"><span><label><input type="checkbox" id="w-scar"> Infarct scar</label></span><span class="muted" style="font-size:12px;grid-column: span 2">no conduction help, no contraction</span></div>
+      <div id="scar-sliders"></div>
+      <h3>Results <span class="muted" style="font-weight:400">(change vs. calibrated heart)</span></h3>
+      <div class="cards" id="cards"></div>
+      <p class="err" id="err"></p>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="hp-card chart"><h2>Pressure–volume loop</h2><div class="legend"><span><i style="background:var(--baseline)"></i>Calibrated heart</span><span><i style="background:var(--series-1)"></i>With what-ifs</span></div><canvas id="c-pv"></canvas><div class="tip" id="tip-pv"></div></div>
+    <div class="hp-card chart"><h2>Pressures over one beat</h2><div class="legend"><span><i style="background:var(--series-1)"></i>Left ventricle</span><span><i style="background:var(--series-2)"></i>Aorta</span><span><i style="background:var(--series-3)"></i>Left atrium</span></div><canvas id="c-p"></canvas><div class="tip" id="tip-p"></div></div>
+    <div class="hp-card chart"><h2>Blood flow through the valves</h2><div class="legend"><span><i style="background:var(--series-1)"></i>Aortic valve (ejection)</span><span><i style="background:var(--series-2)"></i>Mitral valve (filling)</span></div><canvas id="c-q"></canvas><div class="tip" id="tip-q"></div></div>
+  </div>
+
+  <div class="charts">
+    <div class="hp-card"><h2>Where the numbers come from</h2><table class="src" id="sources"></table>
+      <h3>Calibration fit</h3><table class="src" id="fit"></table></div>
+    <div class="hp-card"><h2>Fat</h2><p id="fat-text" style="font-size:13.5px"></p>
+      <h2 style="margin-top:14px">Use this patient's MRI</h2>
+      <p class="muted" style="font-size:13px;margin-top:0">End-diastolic and end-systolic short-axis NIfTI stacks. Gives the patient's own mesh, volumes and measured wall thickening.</p>
+      <div class="upload">
+        <div><label for="up-ed">ED stack</label><input type="file" id="up-ed" accept=".nii,.gz"></div>
+        <div><label for="up-es">ES stack</label><input type="file" id="up-es" accept=".nii,.gz"></div>
+        <div><label for="up-h">Height (cm)</label><input type="number" id="up-h"></div>
+        <div><label for="up-w">Weight (kg)</label><input type="number" id="up-w"></div>
+      </div>
+      <button class="btn" id="btn-upload" style="margin-top:8px">Segment and build twin</button> <span id="up-status" class="muted" style="font-size:13px"></span>
+    </div>
+    <div class="hp-card"><h2>Not modelled here</h2><ul class="scope" id="scope"></ul></div>
+  </div>
+</div>
+<script type="module" src="/static/heart_physics.js"></script>
+</body>
+</html>

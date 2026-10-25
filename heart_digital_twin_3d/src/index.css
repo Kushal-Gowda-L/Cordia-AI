@@ -1,0 +1,731 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+/* Light clinical theme. The heart viewer and the monitor traces stay on dark
+   "screens", the way imaging viewers and bedside monitors do. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --border: #dde3ea;
+  --border-strong: #c7d0da;
+  --text: #1b2733;
+  --text-dim: #5b6b7c;
+  --primary: #1f5fae;
+  --primary-hover: #174a88;
+  --primary-soft: #e8f0fa;
+  --danger: #c0392b;
+  --warn: #9a6200;
+  --success: #2e7d4f;
+  --screen: #07101d;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------- header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.app-header-sub {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.app-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.speed-control select {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.app-banner {
+  background: #fff8e6;
+  border-bottom: 1px solid #f0dca8;
+  color: #6e4b00;
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 12px;
+}
+
+/* ------------------------------------------------------------- layout */
+.app-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 380px;
+  gap: 14px;
+  padding: 14px;
+  align-items: start;
+}
+
+.app-grid-left,
+.app-grid-center,
+.app-grid-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.panel-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.panel-subtitle {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.panel-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.panel-error p,
+.inline-error {
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.seg-button {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.seg-button:hover {
+  border-color: var(--primary);
+}
+
+.seg-button.active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------- patient summary */
+.risk-block {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.risk-figure {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.tone-low {
+  color: var(--success);
+}
+
+.tone-mid {
+  color: var(--warn);
+}
+
+.tone-high {
+  color: var(--danger);
+}
+
+.risk-caption {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 3px;
+}
+
+.updating {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--primary);
+  margin-left: 8px;
+}
+
+.risk-delta {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.risk-delta.up {
+  color: var(--danger);
+}
+
+.risk-delta.down {
+  color: var(--success);
+}
+
+.risk-severity {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.scenario-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.model-setup summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--primary);
+  margin-top: 4px;
+}
+
+.derivation {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.derivation td {
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.derivation td.num {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.src-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.src-record {
+  background: #e7f4ec;
+  color: var(--success);
+}
+
+.src-estimated {
+  background: #fdf3e1;
+  color: var(--warn);
+}
+
+.src-typical {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.patient-note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+/* ------------------------------------------------------------- inputs */
+.input-group-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 12px 0 4px;
+}
+
+.input-group-note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin: 0 0 4px;
+}
+
+.input-row {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.input-row:last-child {
+  border-bottom: none;
+}
+
+.input-row.changed {
+  box-shadow: inset 3px 0 0 var(--warn);
+  padding-left: 9px;
+}
+
+.input-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.input-head label {
+  font-weight: 500;
+}
+
+.heart-tag {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.input-value {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--primary);
+  text-align: right;
+}
+
+.input-clinical {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 1px 0 6px;
+}
+
+.input-caution {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #6e4b00;
+  background: #fdf3e1;
+  border: 1px solid #f0dca8;
+  border-radius: 5px;
+  padding: 5px 8px;
+  margin: 2px 0 7px;
+}
+
+.input-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.input-row select {
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.segmented {
+  display: flex;
+  gap: 6px;
+}
+
+.segmented .seg-button {
+  flex: 1;
+}
+
+.input-baseline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 5px;
+}
+
+.link-button {
+  font: inherit;
+  font-size: 11.5px;
+  border: none;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------- heart viewer */
+.heart3d-canvas {
+  position: relative;
+  width: 100%;
+  height: 54vh;
+  min-height: 400px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--screen);
+  border: 1px solid var(--border-strong);
+}
+
+.chamber-label {
+  color: #eef3f8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(5, 10, 20, 0.6);
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.viewer-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.viewer-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viewer-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewer-toggles-title {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+
+.toggle-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 3px 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.toggle-chip input {
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- vitals */
+.vital-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.vital-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.vital-card-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.vital-card-clinical {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.vital-card-value {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  margin-top: 6px;
+}
+
+.vital-card-value.text {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.vital-card-unit {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+.vital-delta {
+  font-size: 11.5px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.vital-delta.same {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.vital-delta.neutral {
+  color: #1f5fae;
+}
+.vital-delta.better {
+  color: var(--success);
+}
+.vital-delta.worse {
+  color: var(--danger);
+}
+
+.clinical-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.clinical-strip b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.clinical-strip-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------ monitors */
+.ecg-svg {
+  display: block;
+  width: 100%;
+  height: 130px;
+  background: var(--screen);
+  border-radius: 6px;
+}
+
+.pressure-chart-wrap {
+  background: var(--screen);
+  border-radius: 6px;
+  padding: 6px 4px 0 0;
+}
+
+.chart-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 12px;
+  max-width: 260px;
+  box-shadow: 0 2px 6px rgba(16, 40, 70, 0.12);
+}
+
+/* ---------------------------------------------------------------- info */
+.info-panel p {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 10px 0 0;
+}
+
+.legend-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.chamber-key {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.chamber-key div {
+  display: flex;
+  gap: 8px;
+}
+
+.chamber-key dt {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  width: 26px;
+  flex-shrink: 0;
+}
+
+.chamber-key dd {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.dot-red {
+  background: #ff2e3c;
+}
+
+.dot-blue {
+  background: #2e9bff;
+}
+
+.dot-yellow {
+  background: #f2b705;
+}
+
+.dot-glow {
+  background: #9c3a38;
+  box-shadow: 0 0 6px 2px #ff2a18;
+}
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 1200px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Embedded in the CordiaAI dashboard the frame is ~900-1200px wide: keep
+   the details beside the heart and put the charts underneath. */
+@media (min-width: 860px) and (max-width: 1200px) {
+  .app-grid {
+    grid-template-columns: 320px minmax(0, 1fr);
+  }
+  .app-grid-right {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 700px) {
+  .vital-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Step-1 verdict under the risk figure (zones match src/risk_reading.py) */
+.verdict {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.verdict-low {
+  background: #e7f4ec;
+  color: var(--success);
+}
+.verdict-mid {
+  background: #fdf3e1;
+  color: var(--warn);
+}
+.verdict-high {
+  background: #fbeceb;
+  color: var(--danger);
+}

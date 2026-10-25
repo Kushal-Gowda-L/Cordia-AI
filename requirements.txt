@@ -1,0 +1,52 @@
+# Phase 1 — tabular data collection & preprocessing (runs on CPU, no GPU needed)
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+ucimlrepo
+joblib
+
+# Phase 3 — GAN/diffusion augmentation (CPU-feasible for this dataset size)
+# torch is CPU-only; install separately with:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+ctgan
+imbalanced-learn
+scipy
+xgboost
+
+# Phase 1 presentation demo app (superseded by mobile_app/, kept for reference)
+streamlit
+plotly
+
+# Mobile app backend
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Explainability (SHAP / LIME / DiCE), used by mobile_app's report generation
+shap
+lime
+dice-ml
+
+# Federated learning + differential privacy (Step 7)
+flwr
+opacus
+
+# Fairness auditing (Explainable AI layer)
+aif360
+
+# ECG branch local inference + Grad-CAM (training itself runs on Colab)
+wfdb
+librosa
+transformers
+
+# Imaging branches (X-ray, echo, MRI, CT) -- local inference + tests;
+# training runs on Colab/Kaggle (notebooks/step15-18)
+monai
+einops
+nibabel
+scikit-image
+opencv-python-headless
+huggingface_hub
+pytest

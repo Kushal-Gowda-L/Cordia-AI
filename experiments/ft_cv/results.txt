@@ -1,0 +1,42 @@
+cfg A fold 1: acc=0.5272 macroF1=0.3062 epochs=57 (80s)
+cfg A fold 2: acc=0.5870 macroF1=0.3826 epochs=58 (76s)
+cfg A fold 3: acc=0.5054 macroF1=0.3268 epochs=106 (138s)
+cfg A fold 4: acc=0.5707 macroF1=0.3171 epochs=51 (63s)
+cfg A fold 5: acc=0.5000 macroF1=0.3043 epochs=101 (120s)
+cfg A MEAN acc=0.5380 ± 0.0349  macroF1=0.3274 ± 0.0287
+cfg B fold 1: acc=0.5598 macroF1=0.3547 epochs=124 (255s)
+cfg B fold 2: acc=0.5924 macroF1=0.3716 epochs=74 (147s)
+cfg B fold 3: acc=0.5054 macroF1=0.3071 epochs=84 (156s)
+cfg B fold 4: acc=0.5543 macroF1=0.3566 epochs=46 (89s)
+cfg B fold 5: acc=0.5272 macroF1=0.3429 epochs=45 (84s)
+cfg B MEAN acc=0.5478 ± 0.0296  macroF1=0.3466 ± 0.0217
+cfg C fold 1: acc=0.5761 macroF1=0.3426 epochs=[71] (93s)
+cfg C fold 2: acc=0.5598 macroF1=0.3338 epochs=[187] (202s)
+cfg C fold 3: acc=0.5543 macroF1=0.3680 epochs=[85] (95s)
+cfg C fold 4: acc=0.5163 macroF1=0.3672 epochs=[131] (134s)
+cfg C fold 5: acc=0.5924 macroF1=0.3706 epochs=[87] (90s)
+cfg C MEAN acc=0.5598 ± 0.0255  macroF1=0.3564 ± 0.0152
+cfg D fold 1: acc=0.5435 macroF1=0.3680 epochs=[87] (111s)
+cfg D fold 2: acc=0.5761 macroF1=0.3850 epochs=[45] (48s)
+cfg D fold 3: acc=0.5272 macroF1=0.3836 epochs=[52] (56s)
+cfg D fold 4: acc=0.5272 macroF1=0.3854 epochs=[78] (86s)
+cfg D fold 5: acc=0.5054 macroF1=0.3443 epochs=[60] (65s)
+cfg D MEAN acc=0.5359 ± 0.0235  macroF1=0.3733 ± 0.0159
+cfg E fold 1: acc=0.5489 macroF1=0.3623 epochs=[106] (128s)
+cfg E fold 2: acc=0.5489 macroF1=0.4077 epochs=[46] (50s)
+cfg E fold 3: acc=0.5652 macroF1=0.4072 epochs=[42] (48s)
+cfg E fold 4: acc=0.5109 macroF1=0.3771 epochs=[72] (81s)
+cfg E fold 5: acc=0.5272 macroF1=0.3835 epochs=[67] (75s)
+cfg E MEAN acc=0.5402 ± 0.0190  macroF1=0.3876 ± 0.0176
+cfg F fold 1: acc=0.5543 macroF1=0.3656 epochs=[106, 54, 97, 102, 74] (455s)
+cfg F fold 2: acc=0.5924 macroF1=0.4122 epochs=[46, 148, 45, 48, 52] (345s)
+cfg F fold 3: acc=0.5163 macroF1=0.3531 epochs=[42, 49, 71, 60, 69] (313s)
+cfg F fold 4: acc=0.5054 macroF1=0.3506 epochs=[72, 75, 54, 46, 80] (365s)
+cfg F fold 5: acc=0.5380 macroF1=0.3903 epochs=[67, 84, 48, 58, 86] (359s)
+cfg F MEAN acc=0.5413 ± 0.0307  macroF1=0.3744 ± 0.0236
+cfg G fold 1: acc=0.5652 macroF1=0.3294 epochs=[71, 67, 85, 61, 116] (333s)
+cfg G fold 2: acc=0.6196 macroF1=0.3858 epochs=[187, 140, 52, 46, 118] (473s)
+cfg G fold 3: acc=0.5598 macroF1=0.3773 epochs=[85, 140, 125, 73, 82] (416s)
+cfg G fold 4: acc=0.5598 macroF1=0.3504 epochs=[131, 68, 116, 42, 47] (356s)
+cfg G fold 5: acc=0.5815 macroF1=0.3362 epochs=[87, 45, 47, 65, 47] (245s)
+cfg G MEAN acc=0.5772 ± 0.0226  macroF1=0.3558 ± 0.0222

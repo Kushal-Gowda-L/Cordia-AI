@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CordiaAI — Cardiac Risk Assessment</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ================================================================ SIGN IN -->
+<div id="view-login" class="auth-page hidden">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <div><div class="brand-name">CordiaAI</div><div class="brand-sub">Cardiac risk assessment</div></div>
+    </div>
+    <h1>Sign in</h1>
+    <form id="form-login">
+      <div class="field"><label for="login-username">Username</label><input type="text" id="login-username" required autocomplete="username"></div>
+      <div class="field"><label for="login-password">Password</label><input type="password" id="login-password" required autocomplete="current-password"></div>
+      <p class="form-error" id="login-error" role="alert"></p>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+    <p class="auth-switch">No account yet? <a href="#" id="go-signup">Create one</a></p>
+  </div>
+  <p class="auth-footnote">Clinical decision support. Results are estimates and should be reviewed by a qualified clinician.</p>
+</div>
+
+<!-- ================================================================ SIGN UP -->
+<div id="view-signup" class="auth-page hidden">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <div><div class="brand-name">CordiaAI</div><div class="brand-sub">Cardiac risk assessment</div></div>
+    </div>
+    <h1>Create an account</h1>
+    <form id="form-signup">
+      <div class="field"><label for="signup-username">Username</label><input type="text" id="signup-username" required autocomplete="username"></div>
+      <div class="field"><label for="signup-password">Password</label><input type="password" id="signup-password" required autocomplete="new-password"></div>
+      <fieldset class="field">
+        <legend>Account type</legend>
+        <div class="segmented">
+          <label class="seg-option"><input type="radio" name="signup-role" value="doctor" checked> Clinician</label>
+          <label class="seg-option"><input type="radio" name="signup-role" value="patient"> Patient</label>
+        </div>
+      </fieldset>
+      <p class="form-error" id="signup-error" role="alert"></p>
+      <button type="submit" class="btn btn-primary btn-block">Create account</button>
+    </form>
+    <p class="auth-switch">Already registered? <a href="#" id="go-login">Sign in</a></p>
+  </div>
+  <p class="auth-footnote">Clinical decision support. Results are estimates and should be reviewed by a qualified clinician.</p>
+</div>
+
+<!-- ================================================================ APP -->
+<div id="app-shell" class="app-shell hidden">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <div><div class="brand-name">CordiaAI</div><div class="brand-sub">Cardiac risk assessment</div></div>
+    </div>
+    <nav class="side-nav" aria-label="Main">
+      <a href="#" class="side-link role-doctor-only" data-view="view-home">Patients</a>
+      <a href="#" class="side-link role-patient-only" data-view="view-report">My heart report</a>
+      <a href="#" class="side-link" data-view="view-ecg">ECG analysis</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-user"><span id="home-username"></span><span id="home-role" class="sidebar-role"></span></div>
+      <button class="btn btn-sidebar btn-block" id="btn-logout">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+
+    <!-- PATIENT LIST (clinicians) -->
+    <section id="view-home" class="view">
+      <div class="page-head">
+        <div><h1>Patients</h1><p class="page-sub">Assessments you have recorded. Select a patient to open their latest assessment, record a follow-up visit or compare visits.</p></div>
+        <div class="actions role-doctor-only"><button class="btn btn-primary" id="btn-add-patient">Add patient</button></div>
+      </div>
+      <div class="panel table-panel">
+        <table class="data-table" id="patient-table">
+          <thead>
+            <tr><th>Patient</th><th>Age</th><th>Sex</th><th>Chance of heart disease</th><th>Model&rsquo;s reading</th><th>Visits</th><th>Last visit</th><th>Patient access</th></tr>
+          </thead>
+          <tbody id="patient-rows"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state hidden">No patients yet. Use <b>Add patient</b> to record the first assessment.</div>
+      </div>
+    </section>
+
+    <!-- ADD PATIENT (clinicians) -->
+    <section id="view-add" class="view">
+      <div class="page-head">
+        <div><h1 id="add-title">Add patient</h1><p class="page-sub" id="add-sub">All of these details are used to estimate the risk.</p></div>
+      </div>
+      <form id="form-patient" class="panel form-panel">
+        <div id="name-field-wrapper" class="field"><label for="p-name">Patient name</label><input type="text" id="p-name" required></div>
+
+        <h2 class="form-section">Health details</h2>
+        <div class="form-grid">
+          <div class="field"><label for="p-age">Age <span class="clinical">years</span></label><input type="number" id="p-age" min="28" max="77" value="54" required></div>
+          <div class="field"><label for="p-sex">Sex</label><select id="p-sex"><option value="1">Male</option><option value="0">Female</option></select></div>
+          <div class="field">
+            <label for="p-cp">Type of chest pain <span class="clinical">chest pain type</span></label>
+            <select id="p-cp">
+              <option value="1">Typical heart pain (typical angina)</option>
+              <option value="2">Unusual chest pain (atypical angina)</option>
+              <option value="3">Pain not from the heart (non-anginal)</option>
+              <option value="4" selected>No chest pain (asymptomatic)</option>
+            </select>
+          </div>
+          <div class="field"><label for="p-trestbps">Blood pressure at rest <span class="clinical">resting systolic, mm Hg</span></label><input type="number" id="p-trestbps" min="90" max="200" value="132" required></div>
+          <div class="field"><label for="p-chol">Cholesterol <span class="clinical">serum, mg/dl</span></label><input type="number" id="p-chol" min="100" max="600" value="246" required></div>
+          <div class="field"><label for="p-fbs">High blood sugar when fasting <span class="clinical">over 120 mg/dl</span></label><select id="p-fbs"><option value="0">No</option><option value="1">Yes</option></select></div>
+          <div class="field">
+            <label for="p-restecg">Heart tracing at rest <span class="clinical">resting ECG</span></label>
+            <select id="p-restecg">
+              <option value="0">Normal</option>
+              <option value="1">Minor changes (ST-T abnormality)</option>
+              <option value="2">Thickened heart muscle (LV hypertrophy)</option>
+            </select>
+          </div>
+        </div>
+
+        <h2 class="form-section">Exercise test results</h2>
+        <div class="form-grid">
+          <div class="field"><label for="p-thalach">Highest heart rate during exercise <span class="clinical">maximum heart rate, beats/min</span></label><input type="number" id="p-thalach" min="60" max="202" value="150" required></div>
+          <div class="field"><label for="p-exang">Chest pain during exercise <span class="clinical">exercise-induced angina</span></label><select id="p-exang"><option value="0">No</option><option value="1">Yes</option></select></div>
+          <div class="field"><label for="p-oldpeak">Heart strain on the exercise tracing <span class="clinical">ST depression, mm</span></label><input type="number" id="p-oldpeak" min="-2" max="6" step="0.1" value="1.0" required></div>
+        </div>
+
+        <h2 class="form-section">Further test results <span class="clinical">optional, leave as "Not done" if unavailable</span></h2>
+        <div class="form-grid">
+          <div class="field">
+            <label for="p-slope">Shape of the exercise tracing at peak <span class="clinical">slope of peak exercise ST segment</span></label>
+            <select id="p-slope">
+              <option value="" selected>Not done</option>
+              <option value="1">Rising (upsloping)</option>
+              <option value="2">Flat</option>
+              <option value="3">Falling (downsloping)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="p-ca">Narrowed main heart arteries seen <span class="clinical">major vessels coloured by fluoroscopy, 0&ndash;3</span></label>
+            <select id="p-ca">
+              <option value="" selected>Not done</option>
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="p-thal">Blood-flow scan of the heart muscle <span class="clinical">thallium stress test</span></label>
+            <select id="p-thal">
+              <option value="" selected>Not done</option>
+              <option value="3">Normal</option>
+              <option value="6">Permanent defect (fixed)</option>
+              <option value="7">Defect during exercise (reversible)</option>
+            </select>
+          </div>
+        </div>
+
+        <h2 class="form-section">Visit note <span class="clinical">optional</span></h2>
+        <div class="field"><label for="p-note">Note for this visit <span class="clinical">e.g. 3-month follow-up, started statins</span></label><input type="text" id="p-note" maxlength="500"></div>
+
+        <p class="form-error" id="add-error" role="alert"></p>
+        <div class="form-actions">
+          <button type="button" class="btn" id="btn-back-add">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-patient">Run assessment</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- LINK A RECORD (patients) -->
+    <section id="view-link" class="view">
+      <div class="page-head">
+        <div><h1>Connect your heart report</h1><p class="page-sub">Your clinic records your test results. Enter the access code they gave you to see your report and your heart model.</p></div>
+      </div>
+      <form id="form-link" class="panel form-panel narrow">
+        <div class="field"><label for="link-code">Access code</label><input type="text" id="link-code" required autocomplete="off" spellcheck="false" placeholder="e.g. K7PQ-3MXA" maxlength="20"></div>
+        <p class="form-error" id="link-error" role="alert"></p>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">Connect</button></div>
+        <p class="panel-text">No code yet? Ask the clinic that carried out your heart assessment.</p>
+      </form>
+    </section>
+
+    <!-- ASSESSMENT REPORT (clinician version, or the patient's plain-language version) -->
+    <section id="view-report" class="view">
+      <div class="page-head">
+        <div><h1 id="report-name">Assessment</h1><p class="page-sub" id="report-sub"></p></div>
+        <div class="actions">
+          <button class="btn btn-primary role-doctor-only" id="btn-new-visit">Record follow-up visit</button>
+          <button class="btn role-doctor-only" id="btn-edit-visit">Edit details</button>
+          <button class="btn role-doctor-only" id="btn-compare-visits">Compare visits</button>
+          <button class="btn" id="btn-open-twin">Open digital twin</button>
+          <button class="btn" id="btn-open-physics">Multi-physics heart</button>
+          <button class="btn" id="btn-ai-summary">Plain-language summary</button>
+          <button class="btn btn-danger role-doctor-only" id="btn-delete-patient">Delete</button>
+        </div>
+      </div>
+      <div id="report-body"></div>
+    </section>
+
+    <!-- COMPARE VISITS (clinicians) -->
+    <section id="view-compare" class="view">
+      <div class="page-head">
+        <div><h1 id="compare-title">Compare visits</h1><p class="page-sub">See what changed between two of the patient's visits. Changed details are highlighted.</p></div>
+        <div class="actions"><button class="btn" id="btn-back-compare">Back to report</button></div>
+      </div>
+      <div class="panel compare-pickers">
+        <div class="field"><label for="compare-from">Earlier visit</label><select id="compare-from"></select></div>
+        <div class="field"><label for="compare-to">Later visit</label><select id="compare-to"></select></div>
+      </div>
+      <div id="compare-body"></div>
+    </section>
+
+    <!-- DIGITAL TWIN (heart_digital_twin_3d/, built and served at /twin/) -->
+    <section id="view-twin" class="view view-wide">
+      <div class="page-head">
+        <div><h1 id="twin-title">Digital twin</h1><p class="page-sub" id="twin-sub">Change the patient's details to see how the risk estimate and the heart respond. The saved record is not changed.</p></div>
+        <div class="actions"><button class="btn" id="btn-back-twin">Back to report</button></div>
+      </div>
+      <iframe id="twin-frame" class="twin-frame" title="Digital twin of the heart"></iframe>
+    </section>
+
+    <!-- PLAIN-LANGUAGE SUMMARY -->
+    <section id="view-ai-summary" class="view">
+      <div class="page-head">
+        <div><h1 id="ai-summary-title">Plain-language summary</h1><p class="page-sub">Written by a language model running on this server. Nothing is sent to outside services.</p></div>
+        <div class="actions"><button class="btn" id="btn-back-ai-summary">Back to report</button></div>
+      </div>
+      <div class="panel"><div id="ai-summary-body" class="ai-summary-body">Generating…</div></div>
+    </section>
+
+    <!-- ECG ANALYSIS -->
+    <section id="view-ecg" class="view">
+      <div class="page-head">
+        <div><h1>ECG analysis</h1><p class="page-sub">Upload a digital ECG recording to classify it.</p></div>
+      </div>
+      <div class="panel">
+        <p class="panel-text">Accepted format: WFDB &mdash; a <code>.hea</code> header file with its matching <code>.dat</code> signal file. Photos or scans of printed ECG strips cannot be analysed.</p>
+        <div class="dropzone" id="ecg-dropzone" tabindex="0" role="button" aria-label="Choose ECG files">
+          <div><b>Choose files</b> or drag a .hea and .dat pair here</div>
+          <div class="files" id="ecg-files">No files selected</div>
+        </div>
+        <input type="file" id="ecg-file-input" accept=".hea,.dat" multiple class="hidden">
+        <div class="form-actions"><button class="btn btn-primary" id="ecg-submit" disabled>Analyse recording</button></div>
+        <div id="ecg-result" class="ecg-result hidden"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
