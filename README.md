@@ -4,8 +4,8 @@ Multimodal cardiovascular risk prediction system combining clinical tabular data
 ECG signals, and echocardiography, with explainability, privacy-preserving
 federated training, and a longitudinal patient digital twin.
 
-Full design rationale lives in `../CordiaAI_Methodology.docx` at the repo root.
-This folder is the actual implementation.
+The full design rationale is in the separate methodology document (`CordiaAI_Methodology.docx`, not in this repo).
+This repository is the actual implementation.
 
 
 > **Repository notes.** Large ViT checkpoints (`checkpoints/ecg_vit.pt`, `ecg_vit_unweighted_backup.pt`, `cxr_vit.pt`, ~346 MB each) exceed GitHub's file limit and are not in this repo; retrain them with the notebooks in `notebooks/` or get them from the author. The patient database (`mobile_app/backend/app.db`) and credentialed imaging datasets are never committed. Cross-validation experiments live in `experiments/ft_cv/`, a project review in `docs/cordia_ai_review.md`, and app screenshots in `docs/screenshots/`.
@@ -86,6 +86,8 @@ cordia_ai/
 ## Setup
 
 ```bash
+git clone https://github.com/Kushal-Gowda-L/Cordia-AI.git
+cd Cordia-AI
 python -m venv .venv
 ./.venv/Scripts/pip install -r requirements.txt   # Windows
 ./.venv/Scripts/pip install torch --index-url https://download.pytorch.org/whl/cpu
