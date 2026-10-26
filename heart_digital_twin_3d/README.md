@@ -109,8 +109,11 @@ what the shared link in the project thread serves.
 
 ## Realistic heart and 360° rotation
 
-The **Realistic heart** view shows the closed heart as a lifelike anatomical model in one soft
-coral tone on a studio backdrop ([`RealisticHeart.tsx`](src/components/Heart3D/RealisticHeart.tsx)):
+The **Realistic heart** view shows the closed heart as a lifelike anatomical model, styled on a
+photographic render of a real heart (deep maroon, wet and glossy, with darker and brighter blotches
+and pale fat along the grooves and vessels, painted per vertex from 3D noise in
+[`tissue.ts`](src/components/Heart3D/tissue.ts) so it looks right from every side), on a light
+studio backdrop ([`RealisticHeart.tsx`](src/components/Heart3D/RealisticHeart.tsx)):
 a tapered ventricular body with the coronary arteries and veins raised on its surface, both atria
 and auricles, and the great vessels with open, hollow ends (aortic arch with its three branches,
 pulmonary trunk and arteries, venae cavae, pulmonary veins). It still beats with the simulation: the

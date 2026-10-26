@@ -4,11 +4,13 @@ import { ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { liveOutputsRef } from "../../simulation/liveOutputsRef";
 import { createMuscleBumpTexture } from "./muscleTexture";
+import { ARTERY, ATRIUM, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
 
 /**
  * The "Realistic heart" view: the closed heart as an anatomical sculpture
- * (the look of a studio render of an anatomical model), in one soft coral
- * tone -- a tapered ventricular body with the coronary arteries and veins
+ * styled on a photographic render of a real heart: deep maroon, wet and
+ * glossy muscle with darker and brighter blotches and pale patches of fat
+ * along the grooves and vessels -- a tapered ventricular body with the coronary arteries and veins
  * raised on its surface, both atria and their auricles, and the great
  * vessels with open, hollow ends: the aortic arch with its three branches,
  * the pulmonary trunk and arteries, the venae cavae and pulmonary veins.
@@ -21,8 +23,8 @@ import { createMuscleBumpTexture } from "./muscleTexture";
  * arch, left pulmonary veins) is on the viewer's right.
  */
 
-const SKIN = "#f2a596";
-const LUMEN = "#8f3a38";
+const LUMEN = "#2e070a";
+const VEINS = new Set(["Superior vena cava", "Inferior vena cava", "Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
 const R = 0.95;
 
 type V3 = [number, number, number];
@@ -65,8 +67,10 @@ function makeBody(): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 160, 120);
   const pos = geo.attributes.position;
   const d = new THREE.Vector3();
+  const dirY = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     d.fromBufferAttribute(pos, i).normalize();
+    dirY[i] = d.y;
     const p = bodyPoint(d);
     pos.setXYZ(i, p.x, p.y, p.z);
   }
@@ -82,6 +86,8 @@ function makeBody(): THREE.BufferGeometry {
   const normal = geo.attributes.normal;
   const p = new THREE.Vector3();
   const nrm = new THREE.Vector3();
+  const vessel = new Float32Array(pos.count);
+  const halo = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     p.fromBufferAttribute(pos, i);
     let lift = 0;
@@ -90,6 +96,8 @@ function makeBody(): THREE.BufferGeometry {
       if (dist2 > 0.04) continue;
       const k = dist2 / (s.w * s.w);
       lift = Math.max(lift, 0.9 * s.w * Math.exp(-k) - 0.25 * s.w * Math.exp(-k / 9));
+      vessel[i] = Math.max(vessel[i], Math.exp(-k * 1.5));
+      halo[i] = Math.max(halo[i], Math.exp(-k / 16));
     }
     if (lift !== 0) {
       nrm.fromBufferAttribute(normal, i);
@@ -98,6 +106,18 @@ function makeBody(): THREE.BufferGeometry {
     }
   }
   geo.computeVertexNormals();
+  roughenSurface(geo, 0.012, 3);
+
+  // Fat lies in the groove between atria and ventricles and along the coronary vessels;
+  // the apex and the left ventricle's flank are the darkest muscle.
+  paintTissue(
+    geo,
+    MUSCLE,
+    7,
+    (i) => Math.max(0.85 * halo[i], 0.8 * Math.exp(-Math.pow((dirY[i] - 0.3) / 0.16, 2)), dirY[i] > 0.3 ? 0.55 : 0),
+    (i) => vessel[i],
+    (q) => 1 - 0.38 * THREE.MathUtils.smoothstep(-q.y, 0.5, 1.5) - 0.12 * THREE.MathUtils.smoothstep(q.x, 0.2, 0.9)
+  );
   return geo;
 }
 
@@ -112,6 +132,8 @@ function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
     pos.setXYZ(i, v.x * scale[0] * n, v.y * scale[1] * n, v.z * scale[2] * n);
   }
   geo.computeVertexNormals();
+  roughenSurface(geo, 0.01, seed);
+  paintTissue(geo, ATRIUM, seed * 13, (_i, p) => 0.35 * fbm(p, 3, 2, seed));
   return geo;
 }
 
@@ -126,12 +148,12 @@ interface GreatVessel {
 
 const GREAT_VESSELS: GreatVessel[] = [
   // The aorta rises behind the pulmonary trunk and arches back and to the heart's left.
-  { name: "Aorta", points: [[0.02, 0.2, 0.0], [-0.05, 0.6, 0.06], [-0.04, 0.98, 0.0], [0.12, 1.16, -0.2], [0.38, 1.08, -0.42], [0.5, 0.75, -0.55], [0.52, 0.2, -0.6], [0.5, -0.45, -0.6]], radius: 0.17, open: true },
+  { name: "Aorta", points: [[0.02, 0.2, 0.0], [-0.05, 0.6, 0.06], [-0.04, 0.98, 0.0], [0.12, 1.16, -0.2], [0.38, 1.08, -0.42], [0.5, 0.75, -0.55], [0.52, 0.2, -0.6], [0.5, -0.45, -0.6]], radius: 0.19, open: true },
   { name: "Brachiocephalic trunk", points: [[-0.04, 1.08, -0.08], [-0.1, 1.35, -0.08], [-0.16, 1.58, -0.08]], radius: 0.075, taper: 0.85, open: true },
   { name: "Left common carotid", points: [[0.14, 1.17, -0.22], [0.15, 1.4, -0.22], [0.14, 1.62, -0.2]], radius: 0.058, taper: 0.9, open: true },
   { name: "Left subclavian", points: [[0.3, 1.12, -0.33], [0.36, 1.35, -0.34], [0.44, 1.55, -0.36]], radius: 0.06, taper: 0.9, open: true },
   // Pulmonary trunk leaves the front of the right ventricle, crossing in front of the aorta.
-  { name: "Pulmonary trunk", points: [[-0.12, 0.25, 0.36], [-0.05, 0.55, 0.36], [0.08, 0.8, 0.22], [0.16, 0.9, 0.06]], radius: 0.15, open: false },
+  { name: "Pulmonary trunk", points: [[-0.12, 0.25, 0.36], [-0.05, 0.55, 0.36], [0.08, 0.8, 0.22], [0.16, 0.9, 0.06]], radius: 0.17, open: false },
   { name: "Left pulmonary artery", points: [[0.16, 0.9, 0.06], [0.42, 0.98, 0.0], [0.72, 0.95, -0.06]], radius: 0.1, taper: 0.9, open: true },
   { name: "Right pulmonary artery", points: [[0.16, 0.9, 0.06], [-0.15, 0.93, -0.24], [-0.48, 0.88, -0.3], [-0.72, 0.84, -0.3]], radius: 0.1, taper: 0.9, open: true },
   { name: "Superior vena cava", points: [[-0.48, 0.42, -0.04], [-0.5, 0.85, -0.06], [-0.5, 1.3, -0.06]], radius: 0.13, open: true },
@@ -161,6 +183,8 @@ function makeVessel(v: GreatVessel) {
     }
     geo.computeVertexNormals();
   }
+  roughenSurface(geo, v.radius * 0.06, v.radius * 100);
+  paintTissue(geo, VEINS.has(v.name) ? VEIN : ARTERY, v.points.length * 5 + v.radius * 50, () => 0.45);
   // A rim at the cut end gives the vessel wall visible thickness.
   const end = curve.getPointAt(1);
   const tangent = curve.getTangentAt(1);
@@ -206,19 +230,20 @@ export function RealisticHeart() {
     if (roots.current) roots.current.scale.setScalar(1 + THREE.MathUtils.clamp((out.pAo - 80) / 40, 0, 1) * 0.015);
   });
 
+  // Wet tissue: colour from the painted vertices, a glossy clear coat on top.
   const skin = (
     <meshPhysicalMaterial
-      color={SKIN}
-      roughness={0.42}
+      vertexColors
+      color="#ffffff"
+      roughness={0.34}
       metalness={0}
-      clearcoat={0.55}
-      clearcoatRoughness={0.32}
-      sheen={0.35}
-      sheenColor="#ffd6cf"
+      clearcoat={1}
+      clearcoatRoughness={0.12}
       bumpMap={bump}
-      bumpScale={0.004}
+      bumpScale={0.006}
     />
   );
+  const rimSkin = <meshPhysicalMaterial color="#9a3038" roughness={0.35} clearcoat={1} clearcoatRoughness={0.15} />;
 
   return (
     <group position={[0, -0.12, 0]} scale={0.88}>
@@ -253,13 +278,13 @@ export function RealisticHeart() {
             {v.rim && (
               <mesh position={v.rim.position} quaternion={v.rim.quaternion}>
                 <torusGeometry args={[v.rim.radius * 0.93, v.rim.radius * 0.1, 10, 36]} />
-                {skin}
+                {rimSkin}
               </mesh>
             )}
           </group>
         ))}
       </group>
-      <ContactShadows position={[0, -1.7, 0]} opacity={0.32} blur={2.6} scale={5} far={3.2} color="#6e3d44" />
+      <ContactShadows position={[0, -1.7, 0]} opacity={0.32} blur={2.6} scale={5} far={3.2} color="#3d3335" />
     </group>
   );
 }
@@ -268,11 +293,11 @@ export function RealisticHeart() {
 export function StudioLights() {
   return (
     <>
-      <hemisphereLight args={["#fff2ef", "#c49297", 1.15]} />
-      <directionalLight position={[2.5, 3.5, 3]} intensity={1.7} color="#fff4ee" />
-      <directionalLight position={[-3, 1.2, 1.5]} intensity={0.55} color="#ffd9d6" />
-      <directionalLight position={[0, 2, -3.5]} intensity={0.9} color="#ffe6e2" />
-      <pointLight position={[0, -0.4, 2.8]} intensity={4} distance={8} decay={2} color="#ffd8d0" />
+      <hemisphereLight args={["#ffffff", "#9a8f90", 1.1]} />
+      <directionalLight position={[2.5, 3.5, 3]} intensity={2.4} color="#ffffff" />
+      <directionalLight position={[-3, 1.5, 2]} intensity={1.0} color="#f4f0ee" />
+      <directionalLight position={[0, 2, -3.5]} intensity={1.2} color="#ffffff" />
+      <pointLight position={[0.6, 0.6, 2.6]} intensity={6} distance={8} decay={2} color="#ffffff" />
     </>
   );
 }

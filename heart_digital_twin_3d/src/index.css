@@ -948,8 +948,8 @@ body,
 
 /* ---------------------------------------------- realistic view, turntable */
 .heart3d-canvas.studio {
-  background: radial-gradient(ellipse at 50% 38%, #e9d3d4 0%, #d6b7bb 55%, #c39ea5 100%);
-  border-color: #c9a9ad;
+  background: radial-gradient(ellipse at 50% 40%, #fbfbfb 0%, #f0efef 60%, #e2e0e0 100%);
+  border-color: var(--border-strong);
 }
 .rotate-toggle {
   position: absolute;
