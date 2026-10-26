@@ -1,5 +1,5 @@
-import { Suspense, useRef, type ReactNode } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useRef, type ReactNode } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { SimulationDriver } from "./SimulationDriver";
@@ -16,7 +16,27 @@ import { RealisticHeart, StudioLights } from "./RealisticHeart";
 import { DigitalHeart, DigitalLights } from "./DigitalHeart";
 import { HoloHud } from "./HoloHud";
 import { ShellCutDriver } from "./shellCut";
-import { DIGITAL } from "../../variant";
+import { DIGITAL, VARIANT } from "../../variant";
+
+// Preset angles (around the vertical, and down from it) for the view buttons.
+const VIEWS = { front: [0.35, 1.25], back: [Math.PI + 0.3, 1.25], left: [1.6, 1.2], four: [0.05, 1.3] } as const;
+
+/** Moves the camera to a preset view when one is requested. */
+function CameraRig() {
+  const view = useHeartStore((s) => s.cameraView);
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update: () => void } | null;
+  useEffect(() => {
+    if (!view) return;
+    const [theta, phi] = VIEWS[view.name];
+    const target = controls?.target ?? new THREE.Vector3();
+    const r = camera.position.distanceTo(target);
+    camera.position.set(target.x + r * Math.sin(phi) * Math.sin(theta), target.y + r * Math.cos(phi), target.z + r * Math.sin(phi) * Math.cos(theta));
+    camera.lookAt(target);
+    controls?.update();
+  }, [view, camera, controls]);
+  return null;
+}
 
 /** Turns its contents round on the spot (for the side-by-side view, where each heart spins in place). */
 function Spinner({ on, children }: { on: boolean; children: ReactNode }) {
@@ -118,6 +138,7 @@ export function Heart3D() {
           autoRotateSpeed={2.4}
           makeDefault
         />
+        <CameraRig />
       </Canvas>
       <button
         type="button"
@@ -129,7 +150,7 @@ export function Heart3D() {
         <span aria-hidden="true">&#10227;</span> {autoRotate ? "Rotating 360°" : "Rotate 360°"}
       </button>
       <RiskLegend />
-      {DIGITAL && <HoloHud />}
+      {VARIANT === "digital" && <HoloHud />}
     </div>
   );
 }

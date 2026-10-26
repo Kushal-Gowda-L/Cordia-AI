@@ -19,6 +19,8 @@ export type ViewMode =
   | "lowpoly"
   | "dual";
 
+export type CameraView = "front" | "back" | "left" | "four";
+
 /** Views showing a whole, closed model heart (no cutaway), which start turning when chosen. */
 export function isModelView(m: ViewMode): boolean {
   return m === "realistic" || m === "hologram" || m === "lowpoly" || m === "dual";
@@ -81,6 +83,10 @@ interface HeartStore {
   /** Turntable: the camera circles the heart continuously (360 degrees). */
   autoRotate: boolean;
   setAutoRotate: (on: boolean) => void;
+
+  /** A preset camera angle to move to; `n` changes on every request, so repeating one works. */
+  cameraView: { name: CameraView; n: number } | null;
+  setCameraView: (name: CameraView) => void;
 
   toggles: StructureToggles;
   toggleStructure: (key: keyof StructureToggles) => void;
@@ -209,6 +215,9 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
 
   autoRotate: DIGITAL,
   setAutoRotate: (on) => set({ autoRotate: on }),
+
+  cameraView: null,
+  setCameraView: (name) => set((s) => ({ cameraView: { name, n: (s.cameraView?.n ?? 0) + 1 }, autoRotate: false })),
 
   toggles: { ...DEFAULT_TOGGLES },
   toggleStructure: (key) => set((s) => ({ toggles: { ...s.toggles, [key]: !s.toggles[key] } })),

@@ -119,6 +119,32 @@ in real time at any frame rate (long frames are integrated in small steps), and 
 speeds up or slows the beat smoothly from where it is. In the holographic views the coronary arteries
 and mesh nodes take the predicted risk's colour (green, amber, red).
 
+## Cordia Heart Twin workstation (`workstation.html`)
+
+A third page, [`workstation.html`](workstation.html), is the Cordia Heart Twin workstation (patient
+inputs | live heart | model read-outs) with this 3D twin as its heart
+([`src/workstation/`](src/workstation/)). It keeps the workstation's layout, wording and behaviour:
+the ~30 patient fields in their groups, *Apply healthy targets* / *Reset to patient*, the four browser
+risk models (UCI angiography, Framingham 10-year CHD, the 70k cardiovascular exams, CDC BRFSS) as
+cards with the change against the loaded patient, the main drivers, the 10-year trajectory, the
+time machine (*Play 10 years*), cut-away depth, wall opacity, animation speed, structure toggles and
+the Anterior / Posterior / Left lateral / 4-chamber views
+([`models.ts`](src/workstation/models.ts) is a direct port of its models).
+
+The centre is the twin: chips switch between Hologram, Low-poly, Realistic, Red + blue, Inside,
+Valves, Electrical and Risk map. The patient's heart rate, blood pressure, age, diabetes and resting
+ECG set the simulated heart; its pumping strength is tuned until the simulated EF settles on the
+patient's EF, the ectopic-beat % makes that share of beats come early, and the coronary colour and
+risk map follow the highest model risk. The HUD shows the workstation's line (rate, BP, EF, visual
+stenosis, years) plus the twin's live EF, output and LV volume.
+
+**Team dataset**: *Load CSV…* (or the UCI / Framingham samples) reads any heart CSV in the browser.
+Each patient field is matched to a column by name, with the usual spellings of the UCI, Framingham,
+cardio-70k, BRFSS and Kaggle heart files, and units / codings are converted (age in days, mmol/L,
+0-based Kaggle codes, text such as `ATA`, `Flat`, `M`/`F`, BMI to weight). Matched fields are tagged
+*data*; ◀ ▶, a row number or *Random* picks the patient, and fields the file lacks keep the example
+patient's values ([`wsData.ts`](src/workstation/wsData.ts)).
+
 ## Holographic twin (`digital.html`)
 
 A second page, [`digital.html`](digital.html), is the same twin (same panels, example patient,
