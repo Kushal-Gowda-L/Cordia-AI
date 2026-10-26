@@ -945,3 +945,38 @@ body,
   font-size: 11.5px;
   color: var(--text-dim);
 }
+
+/* ---------------------------------------------- realistic view, turntable */
+.heart3d-canvas.studio {
+  background: radial-gradient(ellipse at 50% 38%, #e9d3d4 0%, #d6b7bb 55%, #c39ea5 100%);
+  border-color: #c9a9ad;
+}
+.rotate-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(5, 10, 20, 0.6);
+  color: #e8eef5;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rotate-toggle span {
+  font-size: 14px;
+  line-height: 1;
+}
+.rotate-toggle.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.rotate-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}

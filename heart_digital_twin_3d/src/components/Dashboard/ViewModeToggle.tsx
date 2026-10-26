@@ -1,6 +1,7 @@
 import { StructureToggles, useHeartStore, ViewMode } from "../../state/store";
 
 const MODES: { id: ViewMode; label: string; hint: string }[] = [
+  { id: "realistic", label: "Realistic heart", hint: "A lifelike outer heart, turning so you can see it from every side" },
   { id: "anatomy", label: "Outside", hint: "The heart as seen from outside" },
   { id: "chambers", label: "Inside", hint: "Opened up to show the four chambers" },
   { id: "bloodFlow", label: "Blood flow", hint: "Highlights blood moving through the heart" },
@@ -68,13 +69,14 @@ export function ViewModeToggle() {
           />
           <output>{Math.round((1 - xray.wallOpacity) * 100)}%</output>
         </label>
-        <label className="xray-slider" title="Slices the heart from the front, like a dissection">
+        <label className="xray-slider" title={viewMode === "realistic" ? "Applies to every view except Realistic heart" : "Slices the heart from the front, like a dissection"}>
           Cut away front
           <input
             type="range"
             min={0}
             max={100}
             step={1}
+            disabled={viewMode === "realistic"}
             value={Math.round(xray.cutDepth * 100)}
             onChange={(e) => setXRay({ cutDepth: Number(e.target.value) / 100 })}
           />

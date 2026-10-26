@@ -107,6 +107,18 @@ picture:
 backend (offline model, dataset mode, samples), which works from any static host. That build is
 what the shared link in the project thread serves.
 
+## Realistic heart and 360° rotation
+
+The **Realistic heart** view shows the closed heart as a lifelike anatomical model in one soft
+coral tone on a studio backdrop ([`RealisticHeart.tsx`](src/components/Heart3D/RealisticHeart.tsx)):
+a tapered ventricular body with the coronary arteries and veins raised on its surface, both atria
+and auricles, and the great vessels with open, hollow ends (aortic arch with its three branches,
+pulmonary trunk and arteries, venae cavae, pulmonary veins). It still beats with the simulation: the
+ventricles squeeze and twist with the simulated ventricular volume, the atria with atrial volume.
+
+The **Rotate 360°** button (top right of the viewer, any view) turns the heart round continuously;
+the Realistic view starts with it on. Dragging still turns it by hand in any direction.
+
 ## Looking inside the heart
 
 Under the heart, **Look inside** has two sliders that work together with the view buttons:

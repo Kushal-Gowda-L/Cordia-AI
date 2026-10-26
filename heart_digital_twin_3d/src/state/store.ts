@@ -4,7 +4,7 @@ import type { PatientTwin, Prediction, PredictionInputs, ScenarioKey, TwinScenar
 import { steadyStateVitals, type Vitals } from "../simulation/steadyState";
 import { describeChanges, fieldFor, type InputKey } from "../patient/inputFields";
 
-export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "risk";
+export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "risk" | "realistic";
 
 /** How to look inside the closed heart: a see-through wall and a slicing plane. */
 export interface XRaySettings {
@@ -59,6 +59,10 @@ interface HeartStore {
 
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
+
+  /** Turntable: the camera circles the heart continuously (360 degrees). */
+  autoRotate: boolean;
+  setAutoRotate: (on: boolean) => void;
 
   toggles: StructureToggles;
   toggleStructure: (key: keyof StructureToggles) => void;
@@ -156,7 +160,11 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   setSpeed: (s) => set({ speed: s }),
 
   viewMode: "chambers",
-  setViewMode: (m) => set({ viewMode: m }),
+  // The realistic heart is made to be looked at all round, so it starts turning.
+  setViewMode: (m) => set(m === "realistic" ? { viewMode: m, autoRotate: true } : { viewMode: m }),
+
+  autoRotate: false,
+  setAutoRotate: (on) => set({ autoRotate: on }),
 
   toggles: { ...DEFAULT_TOGGLES },
   toggleStructure: (key) => set((s) => ({ toggles: { ...s.toggles, [key]: !s.toggles[key] } })),
