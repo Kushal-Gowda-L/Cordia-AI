@@ -15,6 +15,7 @@ import { RiskLegend } from "./RiskLegend";
 import { RealisticHeart, StudioLights } from "./RealisticHeart";
 import { DigitalHeart, DigitalLights } from "./DigitalHeart";
 import { HoloHud } from "./HoloHud";
+import { ShellCutDriver } from "./shellCut";
 import { DIGITAL } from "../../variant";
 
 /** Turns its contents round on the spot (for the side-by-side view, where each heart spins in place). */
@@ -72,6 +73,7 @@ export function Heart3D() {
         )}
         <Suspense fallback={null}>
           <SimulationDriver />
+          {(digital || realistic) && <ShellCutDriver />}
           {viewMode === "dual" ? (
             // The red heart and its blue digital twin side by side, each turning in place.
             <>

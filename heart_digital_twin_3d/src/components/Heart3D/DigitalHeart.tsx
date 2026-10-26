@@ -1,6 +1,5 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { liveOutputsRef } from "../../simulation/liveOutputsRef";
 import { useHeartStore } from "../../state/store";
@@ -19,6 +18,8 @@ import {
   type GreatVessel,
   type V3,
 } from "./RealisticHeart";
+import { ModelValves } from "./ModelValves";
+import { SHELL_CUT } from "./shellCut";
 
 /**
  * The "digital" hearts of the holographic twin, built on the same anatomy
@@ -49,26 +50,38 @@ function makeHoloMaterial(color: string, base = 0.08, rim = 0.9, power = 2.2) {
       uRim: { value: rim },
       uPower: { value: power },
       uIntensity: { value: 1 },
+      uScan: { value: -10 },
     },
     vertexShader: /* glsl */ `
+      #include <clipping_planes_pars_vertex>
       varying vec3 vNormal;
       varying vec3 vView;
+      varying float vY;
       void main() {
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         vNormal = normalize(normalMatrix * normal);
-        vView = normalize(-mv.xyz);
-        gl_Position = projectionMatrix * mv;
+        vView = normalize(-mvPosition.xyz);
+        vY = (modelMatrix * vec4(position, 1.0)).y;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
       }`,
     fragmentShader: /* glsl */ `
+      #include <clipping_planes_pars_fragment>
       uniform vec3 uColor;
-      uniform float uBase, uRim, uPower, uIntensity;
+      uniform float uBase, uRim, uPower, uIntensity, uScan;
       varying vec3 vNormal;
       varying vec3 vView;
+      varying float vY;
       void main() {
+        #include <clipping_planes_fragment>
         float f = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), uPower);
-        float a = (uBase + uRim * f) * uIntensity;
+        // A thin scan line sweeping slowly up through the hologram.
+        float scan = exp(-pow((vY - uScan) / 0.025, 2.0)) * 0.35;
+        float a = (uBase + uRim * f + scan) * uIntensity;
         gl_FragColor = vec4(uColor * a, a);
       }`,
+    clipping: true,
+    clippingPlanes: SHELL_CUT,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -85,20 +98,27 @@ function makePulseMaterial(color: string) {
       uIntensity: { value: 1 },
     },
     vertexShader: /* glsl */ `
+      #include <clipping_planes_pars_vertex>
       varying float vY;
       void main() {
         vY = position.y;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
       }`,
     fragmentShader: /* glsl */ `
+      #include <clipping_planes_pars_fragment>
       uniform vec3 uColor;
       uniform float uFront, uIntensity;
       varying float vY;
       void main() {
+        #include <clipping_planes_fragment>
         float d = (vY - uFront) / 0.14;
         float a = (0.45 + 1.6 * exp(-d * d)) * uIntensity;
         gl_FragColor = vec4(uColor * a, 1.0);
       }`,
+    clipping: true,
+    clippingPlanes: SHELL_CUT,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -127,7 +147,7 @@ function toSegments(lines: THREE.Vector3[][]): THREE.BufferGeometry {
 function makeFibres(): THREE.BufferGeometry {
   const rand = rng(41);
   const lines: THREE.Vector3[][] = [];
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 150; i++) {
     let pol = 0.95 + rand() * 0.55;
     let az = rand() * Math.PI * 2;
     const twist = 0.25 + rand() * 0.35;
@@ -264,142 +284,6 @@ function makeDotTexture(): THREE.Texture {
 const ATRIAL_OFFSET: V3 = [0, -0.4, 0.1];
 const offset = (p: V3): V3 => [p[0] + ATRIAL_OFFSET[0], p[1] + ATRIAL_OFFSET[1], p[2] + ATRIAL_OFFSET[2]];
 
-// ---------------------------------------------------------------- valves
-
-interface DigitalValve {
-  name: "aortic" | "pulmonic" | "mitral" | "tricuspid";
-  label: string;
-  position: V3;
-  /** Direction blood flows through it. */
-  axis: V3;
-  radius: number;
-  leaflets: number;
-  /** Where its label sits, relative to the valve, so the four labels don't overlap. */
-  labelAt: V3;
-}
-
-// Inside the heart, at the roots of the great arteries and between atria and ventricles.
-const DIGITAL_VALVES: DigitalValve[] = [
-  { name: "aortic", label: "Aortic valve", position: [0.01, 0.26, 0.02], axis: [-0.15, 1, 0.1], radius: 0.15, leaflets: 3, labelAt: [0.42, 0.18, 0.1] },
-  { name: "pulmonic", label: "Pulmonary valve", position: [-0.12, 0.3, 0.36], axis: [0.15, 1, 0], radius: 0.135, leaflets: 3, labelAt: [-0.42, 0.22, 0.1] },
-  { name: "mitral", label: "Mitral valve", position: [0.3, 0.1, -0.18], axis: [-0.25, -1, 0.3], radius: 0.17, leaflets: 2, labelAt: [0.5, -0.12, 0.2] },
-  { name: "tricuspid", label: "Tricuspid valve", position: [-0.36, 0.06, 0.04], axis: [0.25, -1, 0.25], radius: 0.18, leaflets: 3, labelAt: [-0.5, -0.14, 0.2] },
-];
-
-function makeCuspGeometry(radius: number, leaflets: number): THREE.BufferGeometry {
-  // A cusp hinged on the ring (y = 0), reaching the centre (y = -radius).
-  const w = 2 * radius * Math.sin(Math.PI / leaflets) * 0.98;
-  const L = radius * 0.97;
-  const shape = new THREE.Shape();
-  shape.moveTo(-w / 2, 0);
-  shape.quadraticCurveTo(-w * 0.18, -L * 0.75, 0, -L);
-  shape.quadraticCurveTo(w * 0.18, -L * 0.75, w / 2, 0);
-  shape.lineTo(-w / 2, 0);
-  return new THREE.ShapeGeometry(shape, 10);
-}
-
-const CUSP_CLOSED = new THREE.Color("#3aa8ff");
-const CUSP_OPEN = new THREE.Color("#c8f4ff");
-const CALCIFIED = new THREE.Color("#ffb03a");
-const LEAKY = new THREE.Color("#ff5a6e");
-
-function DigitalValves({ showLabels }: { showLabels: boolean }) {
-  const cusps = useMemo(() => DIGITAL_VALVES.map((v) => makeCuspGeometry(v.radius, v.leaflets)), []);
-  const orient = useMemo(
-    () => DIGITAL_VALVES.map((v) => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...v.axis).normalize())),
-    []
-  );
-  const hinges = useRef<(THREE.Mesh | null)[][]>(DIGITAL_VALVES.map((v) => Array(v.leaflets).fill(null)));
-  // All of a valve's cusps share one material, so its colour changes together.
-  const mats = useMemo(
-    () =>
-      DIGITAL_VALVES.map(
-        () =>
-          new THREE.MeshBasicMaterial({
-            color: "#3aa8ff",
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            toneMapped: false,
-          })
-      ),
-    []
-  );
-  const rings = useRef<(THREE.Mesh | null)[]>([]);
-  const shown = useRef(DIGITAL_VALVES.map(() => 0));
-  const flash = useRef(DIGITAL_VALVES.map(() => 0));
-
-  useFrame((_, delta) => {
-    const out = liveOutputsRef.current;
-    if (!out) return;
-    const { aorticStenosis, mitralRegurgitation } = useHeartStore.getState().valves;
-    DIGITAL_VALVES.forEach((v, vi) => {
-      const prev = shown.current[vi];
-      shown.current[vi] += (out.valves[v.name] - prev) * Math.min(1, delta * 22);
-      let open = shown.current[vi];
-      // The moment a valve shuts (the heart sound), its ring flashes.
-      if (prev > 0.25 && open <= 0.25) flash.current[vi] = 1;
-      flash.current[vi] = Math.max(0, flash.current[vi] - delta * 3);
-      if (v.name === "mitral") open = Math.max(open, mitralRegurgitation * 0.25);
-      const stiff = v.name === "aortic" ? aorticStenosis : 0;
-      for (const m of hinges.current[vi]) if (m) m.rotation.x = -open * 1.35;
-      const mat = mats[vi];
-      {
-        mat.color.copy(CUSP_CLOSED).lerp(CUSP_OPEN, open);
-        if (stiff) mat.color.lerp(CALCIFIED, stiff * 0.8);
-        if (v.name === "mitral" && mitralRegurgitation > 0) mat.color.lerp(LEAKY, mitralRegurgitation * 0.6);
-        mat.opacity = 0.45 + 0.4 * open;
-      }
-      const ring = rings.current[vi];
-      if (ring) ring.scale.setScalar(1 + flash.current[vi] * 0.25);
-    });
-  });
-
-  return (
-    <group>
-      {DIGITAL_VALVES.map((v, vi) => (
-        <group key={v.name} position={v.position} quaternion={orient[vi]}>
-          <mesh
-            ref={(m) => {
-              rings.current[vi] = m;
-            }}
-          >
-            <torusGeometry args={[v.radius, v.radius * 0.07, 8, 40]} />
-            <meshBasicMaterial color="#7fe0ff" transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
-          </mesh>
-          {Array.from({ length: v.leaflets }).map((_, li) => (
-            <group key={li} rotation={[0, 0, (li * 2 * Math.PI) / v.leaflets]}>
-              <group position={[0, v.radius, 0]}>
-                <mesh
-                  geometry={cusps[vi]}
-                  material={mats[vi]}
-                  ref={(m) => {
-                    hinges.current[vi][li] = m;
-                  }}
-                />
-              </group>
-            </group>
-          ))}
-        </group>
-      ))}
-      {showLabels &&
-        DIGITAL_VALVES.map((v) => (
-          <Html
-            key={`label-${v.name}`}
-            position={[v.position[0] + v.labelAt[0], v.position[1] + v.labelAt[1], v.position[2] + v.labelAt[2]]}
-            center
-            distanceFactor={3.2}
-            occlude={false}
-          >
-            <div className="holo-label">{v.label}</div>
-          </Html>
-        ))}
-    </group>
-  );
-}
-
 // ---------------------------------------------------------------- blood flow
 
 type FlowValve = "aortic" | "pulmonic" | "mitral" | "tricuspid";
@@ -418,7 +302,7 @@ const FLOWS: { vessel: string; valve: FlowValve; inflow: boolean; oxygenated: bo
   { vessel: "Left lower pulmonary vein", valve: "mitral", inflow: true, oxygenated: true },
   { vessel: "Right pulmonary veins", valve: "mitral", inflow: true, oxygenated: true },
 ];
-const PER_VESSEL = 26;
+const PER_VESSEL = 14;
 
 function DigitalFlow() {
   const dot = useMemo(() => makeDotTexture(), []);
@@ -466,7 +350,7 @@ function DigitalFlow() {
         <points key={f.vessel} geometry={f.geo}>
           <pointsMaterial
             map={dot}
-            size={0.07}
+            size={0.055}
             color={f.oxygenated ? "#ff4b5c" : "#4fc3ff"}
             transparent
             depthWrite={false}
@@ -485,6 +369,9 @@ const SYSTEMIC_ARTERIES = new Set(["Aorta", "Brachiocephalic trunk", "Left commo
 
 export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
   const toggles = useHeartStore((s) => s.toggles);
+  // "See-through wall": 1 = the shell as designed, lower = fainter, to look inside.
+  const wall = useHeartStore((s) => s.xray.wallOpacity);
+  const cut = useHeartStore((s) => s.xray.cutDepth > 0);
 
   const parts = useMemo(() => {
     const body = makeBody();
@@ -531,8 +418,20 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
 
   const ventricles = useRef<THREE.Group>(null);
   const atria = useRef<THREE.Group>(null);
+  const root = useRef<THREE.Group>(null);
+  const nodes = useRef<THREE.PointsMaterial[]>([]);
+  // A short, gentle grow-in whenever the look changes.
+  const intro = useRef(0);
+  useEffect(() => {
+    intro.current = 0;
+  }, [look]);
 
-  useFrame(() => {
+  useFrame(({ clock }, delta) => {
+    intro.current = Math.min(1, intro.current + delta / 0.7);
+    if (root.current) root.current.scale.setScalar(0.88 * (0.9 + 0.1 * (1 - (1 - intro.current) ** 3)));
+    const shellLevel = 0.2 + 0.8 * useHeartStore.getState().xray.wallOpacity;
+    const scan = -1.3 + ((clock.elapsedTime / 6) % 1) * 2.8;
+    for (const m of [mats.shell, mats.upper, mats.vessel, mats.arch]) m.uniforms.uScan.value = scan;
     const out = liveOutputsRef.current;
     if (!out) return;
     const v = chamberScale(out.vLV + out.vRV, 350);
@@ -546,24 +445,64 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
     // The glow brightens as the heart squeezes, and the pulse wave runs from
     // the base to the apex during the first part of each beat.
     const squeeze = THREE.MathUtils.clamp((1 - v) * 3, 0, 1);
-    mats.shell.uniforms.uIntensity.value = 0.9 + 0.5 * squeeze;
-    mats.upper.uniforms.uIntensity.value = 0.9 + 0.4 * THREE.MathUtils.clamp((a - 0.8) * 2, 0, 1);
+    mats.shell.uniforms.uIntensity.value = (0.9 + 0.5 * squeeze) * shellLevel;
+    mats.upper.uniforms.uIntensity.value = (0.9 + 0.4 * THREE.MathUtils.clamp((a - 0.8) * 2, 0, 1)) * shellLevel;
+    mats.vessel.uniforms.uIntensity.value = shellLevel;
+    // The low-poly mesh's nodes swell slightly with each squeeze.
+    for (const n of nodes.current) n.size = 0.042 + 0.02 * squeeze;
     const wave = out.tFrac / 0.45;
     mats.artery.uniforms.uFront.value = wave < 1 ? 0.5 - wave * 1.9 : 5;
     // The aorta glows brighter as the ejected blood raises its pressure.
-    mats.arch.uniforms.uIntensity.value = 0.8 + 0.7 * THREE.MathUtils.clamp((out.pAo - 75) / 45, 0, 1);
+    mats.arch.uniforms.uIntensity.value = (0.8 + 0.7 * THREE.MathUtils.clamp((out.pAo - 75) / 45, 0, 1)) * shellLevel;
   });
 
   const lineMat = (color: string, opacity: number) => (
-    <lineBasicMaterial color={color} transparent opacity={opacity} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    <lineBasicMaterial
+      color={color}
+      transparent
+      opacity={opacity}
+      blending={THREE.AdditiveBlending}
+      depthWrite={false}
+      toneMapped={false}
+      clippingPlanes={SHELL_CUT}
+    />
   );
-  const nodeMat = <pointsMaterial map={dot} size={0.05} color="#e6f7ff" transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />;
+  const nodeMat = (
+    <pointsMaterial
+      ref={(m) => {
+        if (m && !nodes.current.includes(m)) nodes.current.push(m);
+      }}
+      map={dot}
+      size={0.045}
+      color="#e6f7ff"
+      transparent
+      opacity={0.5 + 0.5 * wall}
+      depthWrite={false}
+      blending={THREE.AdditiveBlending}
+      toneMapped={false}
+      clippingPlanes={SHELL_CUT}
+    />
+  );
+  // The facets never hide what is behind them in the depth buffer, so the valves always show through.
   const facetMat = (
-    <meshStandardMaterial color="#1f63d8" emissive="#0a2a7a" emissiveIntensity={0.6} metalness={0.35} roughness={0.35} flatShading transparent opacity={0.72} />
+    <meshStandardMaterial
+      color="#1f63d8"
+      emissive="#0a2a7a"
+      emissiveIntensity={0.6}
+      metalness={0.35}
+      roughness={0.35}
+      flatShading
+      transparent
+      opacity={Math.max(0.04, 0.62 * wall)}
+      depthWrite={false}
+      side={cut ? THREE.DoubleSide : THREE.FrontSide}
+      clippingPlanes={SHELL_CUT}
+    />
   );
+  const wireLevel = 0.12 + 0.88 * wall;
 
   return (
-    <group position={[0, -0.12, 0]} scale={0.88}>
+    <group ref={root} position={[0, -0.12, 0]} scale={0.88}>
       {/* Ventricles, with everything on their surface; pivot near the base. */}
       <group position={[0, 0.35, 0]}>
         <group ref={ventricles}>
@@ -571,7 +510,7 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
             {look === "hologram" && holo && (
               <>
                 <mesh geometry={parts.body} material={mats.shell} />
-                <lineSegments geometry={holo.fibres}>{lineMat("#6fd6ff", 0.22)}</lineSegments>
+                <lineSegments geometry={holo.fibres}>{lineMat("#6fd6ff", 0.18 * wall)}</lineSegments>
                 {toggles.vessels && <mesh geometry={holo.arteries} material={mats.artery} />}
                 {toggles.vessels && <lineSegments geometry={holo.veins}>{lineMat("#bff3ff", 0.9)}</lineSegments>}
               </>
@@ -579,7 +518,7 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
             {look === "lowpoly" && low && (
               <>
                 <mesh geometry={low.body}>{facetMat}</mesh>
-                <lineSegments geometry={low.bodyWire}>{lineMat("#a8dcff", 0.55)}</lineSegments>
+                <lineSegments geometry={low.bodyWire}>{lineMat("#a8dcff", 0.55 * wireLevel)}</lineSegments>
                 <points geometry={low.bodyNodes}>{nodeMat}</points>
               </>
             )}
@@ -602,7 +541,7 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
           low.upper.map((g, i) => (
             <group key={i}>
               <mesh geometry={g}>{facetMat}</mesh>
-              <lineSegments geometry={low.upperWire[i]}>{lineMat("#a8dcff", 0.5)}</lineSegments>
+              <lineSegments geometry={low.upperWire[i]}>{lineMat("#a8dcff", 0.5 * wireLevel)}</lineSegments>
             </group>
           ))}
       </group>
@@ -617,12 +556,12 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
           low.vessels.map((g, i) => (
             <group key={i}>
               <mesh geometry={g}>{facetMat}</mesh>
-              <lineSegments geometry={low.vesselWire[i]}>{lineMat("#a8dcff", 0.5)}</lineSegments>
+              <lineSegments geometry={low.vesselWire[i]}>{lineMat("#a8dcff", 0.5 * wireLevel)}</lineSegments>
             </group>
           ))}
         {look === "lowpoly" && low && <points geometry={low.upperNodes}>{nodeMat}</points>}
       </group>
-      {toggles.valves && <DigitalValves showLabels={toggles.labels} />}
+      {toggles.valves && <ModelValves style="glow" />}
       {toggles.bloodFlow && <DigitalFlow />}
     </group>
   );

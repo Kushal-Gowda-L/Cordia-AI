@@ -127,6 +127,15 @@ and live read-outs (heart rate, pressure, EF, output, valve states) over the vie
 with the design reference images (`public/references/`), each with a button to show that look.
 In dev open `http://localhost:5173/digital.html`; both pages are in every build.
 
+**Look inside** works in every view, including the model hearts (realistic, hologram, low-poly,
+red + blue): *See-through wall* fades the heart's wall, and *Cut away front* slices it open from the
+side facing you ([`shellCut.ts`](src/components/Heart3D/shellCut.ts)) while the valves inside stay
+whole. The valves ([`ModelValves.tsx`](src/components/Heart3D/ModelValves.tsx)) are cupped cusps on
+a ring, with chordae and papillary muscles under the mitral and tricuspid valves that tighten as
+they shut; a valve's ring glows briefly as it closes. The hologram also has a slow scan line, the
+low-poly nodes swell with each beat, and each view grows in gently when chosen. Labels start off on
+this page and are one click away (*Show: Labels*).
+
 ## Realistic heart and 360° rotation
 
 The **Realistic heart** view shows the closed heart as an anatomical model on a dark grey studio

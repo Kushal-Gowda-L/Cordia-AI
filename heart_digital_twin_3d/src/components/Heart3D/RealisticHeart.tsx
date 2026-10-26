@@ -5,6 +5,9 @@ import * as THREE from "three";
 import { liveOutputsRef } from "../../simulation/liveOutputsRef";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createMuscleBumpTexture } from "./muscleTexture";
+import { useHeartStore } from "../../state/store";
+import { ModelValves } from "./ModelValves";
+import { SHELL_CUT } from "./shellCut";
 import { ARTERY, ATRIUM, AURICLE, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
 
 /**
@@ -323,6 +326,12 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
   const atria = useRef<THREE.Group>(null);
   const roots = useRef<THREE.Group>(null);
 
+  // Look inside: fade the wall and/or cut it open; the valves then show within.
+  const wall = useHeartStore((s) => s.xray.wallOpacity);
+  const cut = useHeartStore((s) => s.xray.cutDepth > 0);
+  const showValves = useHeartStore((s) => s.toggles.valves) && (wall < 0.97 || cut);
+  const seeThrough = wall < 0.98;
+
   useFrame(() => {
     const out = liveOutputsRef.current;
     if (!out) return;
@@ -350,9 +359,39 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
       clearcoatRoughness={0.3}
       bumpMap={bump}
       bumpScale={0.004}
+      transparent={seeThrough}
+      opacity={wall}
+      depthWrite={!seeThrough}
+      clippingPlanes={SHELL_CUT}
     />
   );
-  const rimSkin = <meshPhysicalMaterial color="#e3998a" roughness={0.45} clearcoat={0.5} clearcoatRoughness={0.3} />;
+  const rimSkin = (
+    <meshPhysicalMaterial
+      color="#e3998a"
+      roughness={0.45}
+      clearcoat={0.5}
+      clearcoatRoughness={0.3}
+      transparent={seeThrough}
+      opacity={wall}
+      clippingPlanes={SHELL_CUT}
+    />
+  );
+  const vesselSkin = (color: string) => (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={0.38}
+      clearcoat={0.7}
+      clearcoatRoughness={0.25}
+      transparent={seeThrough}
+      opacity={wall}
+      depthWrite={!seeThrough}
+      clippingPlanes={SHELL_CUT}
+    />
+  );
+  // The inner face of the wall, seen where the heart is cut open: a dark cavity.
+  const cavity = cut && (
+    <meshStandardMaterial color="#4a0b12" roughness={0.6} side={THREE.BackSide} transparent={seeThrough} opacity={wall} clippingPlanes={SHELL_CUT} />
+  );
 
   return (
     <group position={[0, -0.12, 0]} scale={0.88}>
@@ -363,12 +402,9 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
             <mesh geometry={body} castShadow>
               {skin}
             </mesh>
-            <mesh geometry={coronaries.arteries}>
-              <meshPhysicalMaterial color="#7d0711" roughness={0.38} clearcoat={0.7} clearcoatRoughness={0.25} />
-            </mesh>
-            <mesh geometry={coronaries.veins}>
-              <meshPhysicalMaterial color="#c4bcc4" roughness={0.4} clearcoat={0.7} clearcoatRoughness={0.25} />
-            </mesh>
+            {cavity && <mesh geometry={body}>{cavity}</mesh>}
+            <mesh geometry={coronaries.arteries}>{vesselSkin("#7d0711")}</mesh>
+            <mesh geometry={coronaries.veins}>{vesselSkin("#c4bcc4")}</mesh>
           </group>
         </group>
       </group>
@@ -383,6 +419,12 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
             {skin}
           </mesh>
         ))}
+        {cavity &&
+          LOBES.map((l, i) => (
+            <mesh key={`cavity-${i}`} geometry={lobes[i]} position={[l.position[0], l.position[1] - 0.4, l.position[2] + 0.1]} rotation={l.rotation}>
+              {cavity}
+            </mesh>
+          ))}
         {AURICLES.map((l, i) => (
           <mesh
             key={`auricle-${i}`}
@@ -400,7 +442,14 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
             <mesh geometry={v.geo}>{skin}</mesh>
             {/* Inside of the vessel, seen through its open end */}
             <mesh geometry={v.geo}>
-              <meshStandardMaterial color={LUMEN} roughness={0.7} side={THREE.BackSide} />
+              <meshStandardMaterial
+                color={LUMEN}
+                roughness={0.7}
+                side={THREE.BackSide}
+                transparent={seeThrough}
+                opacity={wall}
+                clippingPlanes={SHELL_CUT}
+              />
             </mesh>
             {v.rim && (
               <mesh position={v.rim.position} quaternion={v.rim.quaternion}>
@@ -411,6 +460,7 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
           </group>
         ))}
       </group>
+      {showValves && <ModelValves style="tissue" />}
       {shadow && <ContactShadows position={[0, -1.7, 0]} opacity={0.5} blur={2.6} scale={5} far={3.2} color="#000000" />}
     </group>
   );

@@ -146,7 +146,8 @@ const DEFAULT_TOGGLES: StructureToggles = {
   valves: true,
   bloodFlow: true,
   conduction: false,
-  labels: true,
+  // The holographic page starts clean; labels are one click away.
+  labels: !DIGITAL,
 };
 
 /** Whether the chambers inside are on show: always in the opened views, and in the closed ones once see-through or cut. */

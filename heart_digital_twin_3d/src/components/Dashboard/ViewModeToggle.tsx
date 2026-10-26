@@ -35,7 +35,7 @@ export function ViewModeToggle() {
   const toggleStructure = useHeartStore((s) => s.toggleStructure);
   const xray = useHeartStore((s) => s.xray);
   const setXRay = useHeartStore((s) => s.setXRay);
-  const closedHeart = viewMode === "anatomy" || viewMode === "risk";
+  const closedHeart = viewMode === "anatomy" || viewMode === "risk" || isModelView(viewMode);
 
   return (
     <div className="panel viewer-toolbar">
@@ -64,7 +64,7 @@ export function ViewModeToggle() {
       </div>
       <div className="viewer-xray">
         <span className="viewer-toggles-title">Look inside:</span>
-        <label className="xray-slider" title={closedHeart ? "" : "Applies to the Outside and Risk views"}>
+        <label className="xray-slider" title={closedHeart ? "Fades the heart wall so the valves inside show" : "Applies to the Outside, Risk and model-heart views"}>
           See-through wall
           <input
             type="range"
@@ -77,14 +77,13 @@ export function ViewModeToggle() {
           />
           <output>{Math.round((1 - xray.wallOpacity) * 100)}%</output>
         </label>
-        <label className="xray-slider" title={isModelView(viewMode) ? "Applies to the clinical views (Outside, Inside, ...)" : "Slices the heart from the front, like a dissection"}>
+        <label className="xray-slider" title="Slices the heart open from the side facing you, like a dissection">
           Cut away front
           <input
             type="range"
             min={0}
             max={100}
             step={1}
-            disabled={isModelView(viewMode)}
             value={Math.round(xray.cutDepth * 100)}
             onChange={(e) => setXRay({ cutDepth: Number(e.target.value) / 100 })}
           />
