@@ -12,6 +12,7 @@ import { RiskCharts } from "./components/Dashboard/RiskCharts";
 import { SourceToggle } from "./components/Dashboard/SourceToggle";
 import { DatasetPanel } from "./components/Dashboard/DatasetPanel";
 import { ValveControls } from "./components/Dashboard/ValveControls";
+import { LiveControls } from "./components/Dashboard/LiveControls";
 import { PATIENT_VIEW } from "./patient/patientTwin";
 import { DEFAULT_INPUTS, fetchPatientTwin, fetchWhatIf, FORCE_OFFLINE, twinRequestPath, type PredictionInputs } from "./patient/patientTwin";
 import { buildOfflineTwin } from "./patient/offlineTwin";
@@ -87,6 +88,7 @@ export default function App() {
               <InputControls />
             </>
           )}
+          {!PATIENT_VIEW && <LiveControls />}
           {!PATIENT_VIEW && <ValveControls />}
         </div>
         <div className="app-grid-center">

@@ -107,6 +107,18 @@ picture:
 backend (offline model, dataset mode, samples), which works from any static host. That build is
 what the shared link in the project thread serves.
 
+## Live heart (real time)
+
+Every view follows the data shown: change an input or pick / edit a dataset row and the risk model,
+heart physiology, beating 3D hearts (all views), valves, chambers, blood flow, ECG, pressure trace,
+cards and the viewer's read-outs update together. The **Live heart** panel
+([`LiveControls.tsx`](src/components/Dashboard/LiveControls.tsx)) starts at the data's heart rate,
+systolic pressure and pumping strength and moves the beating heart instantly; a later data edit takes
+over for any value it sets, and *Back to the data values* drops the hand changes. The simulation runs
+in real time at any frame rate (long frames are integrated in small steps), and a heart-rate change
+speeds up or slows the beat smoothly from where it is. In the holographic views the coronary arteries
+and mesh nodes take the predicted risk's colour (green, amber, red).
+
 ## Holographic twin (`digital.html`)
 
 A second page, [`digital.html`](digital.html), is the same twin (same panels, example patient,

@@ -287,8 +287,16 @@ export class HeartSimulation {
   private beatRegurg = 0;
   private lastBeatRegurg = 0;
 
+  // Position in the current beat (0-1) plus completed beats. Kept apart from
+  // elapsed time so a heart-rate change speeds up or slows the next part of
+  // the beat smoothly, instead of jumping to a different point in it.
+  private phase = 0;
+
   reset(params: HeartParams) {
     this.t = 0;
+    this.phase = 0;
+    this.lastBeatEDV = 170;
+    this.lastBeatESV = 120;
     this.lv = { V: 120, Pao: params.diastolicBP };
     this.rv = { V: 130, Pao: 15 };
     this.beatMinV = 120;
@@ -323,7 +331,9 @@ export class HeartSimulation {
     const EmaxRV = RV_CONST.emaxBase * contractilityFactor;
     const EminRV = RV_CONST.eminBase;
 
-    const tFrac = ((this.t % period) + period) / period % 1;
+    const tFrac = this.phase % 1;
+    // The ventricles' time within the beat, consistent with the phase.
+    const beatT = tFrac * period;
     const kick = atrialKick(tFrac);
     // Filling ends when ventricular pressure rises to meet atrial
     // pressure, so these values (with Emin) set end-diastolic volume:
@@ -338,19 +348,21 @@ export class HeartSimulation {
     const pRA = 1.5 + 3.5 * preloadFactor + 2.5 * kick;
 
     const lvResult = stepVentricle(
-      this.lv, this.t, dt, period, LV_CONST, pLA, Emax, Emin, Rsystemic,
+      this.lv, beatT, dt, period, LV_CONST, pLA, Emax, Emin, Rsystemic,
       params.aorticStenosis, params.mitralRegurgitation
     );
     const rvResult = stepVentricle(
-      this.rv, this.t, dt, period, RV_CONST, pRA, EmaxRV, EminRV, Rpulmonary, 0, 0
+      this.rv, beatT, dt, period, RV_CONST, pRA, EmaxRV, EminRV, Rpulmonary, 0, 0
     );
     this.lv = lvResult.state;
     this.rv = rvResult.state;
     this.t += dt;
+    const prevBeat = Math.floor(this.phase);
+    this.phase += dt / period;
 
-    const newTFrac = (this.t % period) / period;
+    const newTFrac = this.phase % 1;
     // Track per-beat min/max volume to report EDV/ESV from the live sim.
-    if (newTFrac < this.prevTFrac) {
+    if (Math.floor(this.phase) > prevBeat) {
       this.lastBeatEDV = this.beatMaxV;
       this.lastBeatESV = this.beatMinV;
       this.lastBeatRegurg = this.beatRegurg;

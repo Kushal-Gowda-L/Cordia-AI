@@ -96,6 +96,12 @@ interface HeartStore {
   valves: ValveDisease;
   setValves: (patch: Partial<ValveDisease>) => void;
 
+  // Live fine-tuning of the beating heart (heart rate, pressure, pumping
+  // strength); applied instantly, and cleared whenever the data changes.
+  tuning: Tuning;
+  setTuning: (patch: Tuning) => void;
+  clearTuning: () => void;
+
   source: TwinSource;
   // The example / patient twin as last loaded, so leaving dataset mode can return to it.
   exampleSnapshot: { twin: PatientTwin; hasPatient: boolean } | null;
@@ -164,6 +170,25 @@ function vitalsFor(scenarios: Record<ScenarioKey, TwinScenario>, scenario: Scena
   return steadyStateVitals(scenarioParams(scenarios, scenario, valves));
 }
 
+/** Hand adjustments to the live heart, on top of what the data gives (cleared when the data changes). */
+export type Tuning = Partial<Pick<HeartParams, "heartRate" | "systolicBP" | "contractility">>;
+
+function tuned(params: HeartParams, tuning: Tuning): HeartParams {
+  const p = { ...params, ...tuning };
+  if (tuning.systolicBP !== undefined) p.diastolicBP = Math.min(p.diastolicBP, p.systolicBP - 10);
+  return p;
+}
+
+/**
+ * Keeps hand adjustments across data edits, except where the data itself now
+ * sets that value differently (e.g. the blood pressure input was changed).
+ */
+function keepTuning(tuning: Tuning, before: HeartParams | null, after: HeartParams): Tuning {
+  const kept: Tuning = {};
+  for (const k of Object.keys(tuning) as (keyof Tuning)[]) if (before && before[k] === after[k]) kept[k] = tuning[k];
+  return kept;
+}
+
 function withPoint(history: RiskPoint[], risk: number, label: string): RiskPoint[] {
   const step = history.length ? history[history.length - 1].step + 1 : 0;
   return [...history, { step, risk, label }].slice(-MAX_HISTORY);
@@ -196,9 +221,24 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
 
   valves: { ...NO_VALVE_DISEASE },
   setValves: (patch) => {
-    const { scenarios, scenario } = get();
+    const { scenarios, scenario, tuning } = get();
     const valves = { ...get().valves, ...patch };
-    set(scenarios ? { valves, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) } : { valves });
+    if (!scenarios) return set({ valves });
+    const params = tuned(scenarioParams(scenarios, scenario, valves), tuning);
+    set({ valves, params, currentVitals: steadyStateVitals(params) });
+  },
+
+  tuning: {},
+  setTuning: (patch) => {
+    const { scenarios, scenario, valves } = get();
+    const tuning = { ...get().tuning, ...patch };
+    if (!scenarios) return set({ tuning });
+    const params = tuned(scenarioParams(scenarios, scenario, valves), tuning);
+    set({ tuning, params, currentVitals: steadyStateVitals(params) });
+  },
+  clearTuning: () => {
+    const { scenarios, scenario, valves } = get();
+    set(scenarios ? { tuning: {}, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) } : { tuning: {} });
   },
 
   source: "example",
@@ -223,6 +263,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       recordInputs: null,
       prediction: twin.prediction,
       scenarios: twin.scenarios,
+      tuning: {},
       params: scenarioParams(twin.scenarios, scenario, valves),
       recordVitals,
       currentVitals: vitalsFor(twin.scenarios, scenario, valves),
@@ -236,13 +277,17 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   },
 
   applyDatasetTwin: (twin, label) => {
-    const { valves, scenario, riskHistory } = get();
+    const { valves, scenario, riskHistory, scenarios } = get();
     const risk = twin.prediction?.risk_percent;
+    const base = scenarioParams(twin.scenarios, scenario, valves);
+    const tuning = keepTuning(get().tuning, scenarios && scenarioParams(scenarios, scenario, valves), base);
+    const params = tuned(base, tuning);
     set({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
-      params: scenarioParams(twin.scenarios, scenario, valves),
-      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
+      tuning,
+      params,
+      currentVitals: steadyStateVitals(params),
       riskHistory: risk === undefined ? riskHistory : withPoint(riskHistory, risk, label),
     });
   },
@@ -287,6 +332,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
       scenario: "rest",
+      tuning: {},
       params: scenarioParams(twin.scenarios, "rest"),
       riskHistory: withPoint([], twin.prediction.risk_percent, hasPatient ? "Recorded values" : "Starting values"),
       resetToken: s.resetToken + 1,
@@ -300,7 +346,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const toExercise = Boolean(fieldFor(key).exercise) && scenario === "rest" && scenarios !== null;
     set({
       inputs: { ...inputs, [key]: value },
-      ...(toExercise && scenarios ? { scenario: "stress" as const, params: scenarioParams(scenarios, "stress", get().valves), currentVitals: vitalsFor(scenarios, "stress", get().valves) } : {}),
+      ...(toExercise && scenarios ? { scenario: "stress" as const, tuning: {}, params: scenarioParams(scenarios, "stress", get().valves), currentVitals: vitalsFor(scenarios, "stress", get().valves) } : {}),
     });
   },
 
@@ -314,11 +360,16 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const { appliedInputs, riskHistory, scenario, valves, source } = get();
     if (source !== "example") return;
     const label = appliedInputs ? describeChanges(appliedInputs, requested) : "Updated";
+    const base = scenarioParams(twin.scenarios, scenario, valves);
+    const prevScenarios = get().scenarios;
+    const tuning = keepTuning(get().tuning, prevScenarios && scenarioParams(prevScenarios, scenario, valves), base);
+    const params = tuned(base, tuning);
     set({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
-      params: scenarioParams(twin.scenarios, scenario, valves),
-      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
+      tuning,
+      params,
+      currentVitals: steadyStateVitals(params),
       appliedInputs: requested,
       whatIfPending: false,
       whatIfError: "",
@@ -332,7 +383,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const { scenarios } = get();
     if (!scenarios) return;
     const { valves } = get();
-    set({ scenario, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) });
+    set({ scenario, tuning: {}, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) });
   },
 
   resetToRecord: () => {
@@ -346,6 +397,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       scenarios: recordTwin.scenarios,
       scenario: "rest",
       valves: { ...NO_VALVE_DISEASE },
+      tuning: {},
       params: scenarioParams(recordTwin.scenarios, "rest"),
       currentVitals: recordVitals ? recordVitals.rest : null,
       riskHistory: changed

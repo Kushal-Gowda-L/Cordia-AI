@@ -18,6 +18,7 @@ import {
   type GreatVessel,
   type V3,
 } from "./RealisticHeart";
+import { riskColor } from "./RiskOverlay";
 import { ModelValves } from "./ModelValves";
 import { ModelChambers } from "./ModelChambers";
 import { SHELL_CUT } from "./shellCut";
@@ -331,7 +332,9 @@ function DigitalFlow() {
     const speedScale = useHeartStore.getState().paused ? 0 : useHeartStore.getState().speed;
     for (const f of flows) {
       const open = out.valves[f.valve];
-      const speed = (0.06 + 0.9 * open) * speedScale;
+      // Faster when the heart pumps more blood per minute.
+      const output = THREE.MathUtils.clamp(out.cardiacOutput / 5.5, 0.4, 2);
+      const speed = (0.06 + 0.9 * open) * output * speedScale;
       const pos = f.geo.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < PER_VESSEL; i++) {
         f.t[i] = (f.t[i] + delta * speed) % 1;
@@ -365,6 +368,10 @@ function DigitalFlow() {
 }
 
 // ---------------------------------------------------------------- the heart
+
+const NODE_WHITE = new THREE.Color("#e6f7ff");
+const riskTarget = new THREE.Color();
+const nodeTarget = new THREE.Color();
 
 const SYSTEMIC_ARTERIES = new Set(["Aorta", "Brachiocephalic trunk", "Left common carotid", "Left subclavian"]);
 
@@ -453,6 +460,14 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
     for (const n of nodes.current) n.size = 0.042 + 0.02 * squeeze;
     const wave = out.tFrac / 0.45;
     mats.artery.uniforms.uFront.value = wave < 1 ? 0.5 - wave * 1.9 : 5;
+    // The coronary arteries and the mesh's nodes take the predicted risk's
+    // colour (green -> amber -> red, as in the Risk view), easing to each new estimate.
+    const risk = useHeartStore.getState().prediction?.risk_percent;
+    if (risk !== undefined) {
+      riskColor(risk, riskTarget);
+      (mats.artery.uniforms.uColor.value as THREE.Color).lerp(riskTarget, 0.08);
+      for (const n of nodes.current) n.color.lerp(nodeTarget.copy(NODE_WHITE).lerp(riskTarget, 0.55), 0.08);
+    }
     // The aorta glows brighter as the ejected blood raises its pressure.
     mats.arch.uniforms.uIntensity.value = (0.8 + 0.7 * THREE.MathUtils.clamp((out.pAo - 75) / 45, 0, 1)) * shellLevel;
   });

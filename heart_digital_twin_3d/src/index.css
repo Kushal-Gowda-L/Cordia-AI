@@ -1127,3 +1127,12 @@ body,
 .theme-digital .app-header {
   background: rgba(4, 16, 38, 0.85);
 }
+.holo-hud .holo-low b {
+  color: #5fe3a1;
+}
+.holo-hud .holo-mid b {
+  color: #ffc34d;
+}
+.holo-hud .holo-high b {
+  color: #ff6b7a;
+}

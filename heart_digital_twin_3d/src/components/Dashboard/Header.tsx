@@ -18,6 +18,7 @@ export function Header() {
   const fromDataset = useHeartStore((s) => s.source === "dataset");
   const reset = () => {
     useHeartStore.getState().setValves({ aorticStenosis: 0, mitralRegurgitation: 0 });
+    useHeartStore.getState().clearTuning();
     if (fromDataset) useDatasetStore.getState().resetRow();
     else resetToRecord();
   };
