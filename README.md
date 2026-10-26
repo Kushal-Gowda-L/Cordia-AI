@@ -81,6 +81,10 @@ cordia_ai/
   train_late_fusion.py            # optional future work: late-fusion combiner on that cohort (not run)
   tests/test_imaging.py           # imaging checks on synthetic data (python -m pytest tests -q)
   tests/test_heart_physics.py     # multi-physics twin checks on a synthetic ventricle
+  train_multisource.py            # multi-source model: one FT-Transformer per public dataset (see below)
+  predict_multisource.py          # score + explain one patient profile with it, incl. what-if
+  src/multisource/                # its datasets, encoders, training, late fusion, Shapley explanations, report
+  tests/test_multisource.py       # its checks on synthetic data (no dataset files needed)
 ```
 
 ## Setup
@@ -100,6 +104,82 @@ ollama pull llama3.2:3b
 ```
 Ollama's Windows installer runs its API server automatically in the
 background afterward; no separate `ollama serve` step needed.
+
+## Multi-source heart-risk model (transformers, no patient linkage)
+
+Seven public datasets, none of which share patients, each train their own transformer encoder;
+a patient is described once and every encoder that can read that description scores them, and
+the scores are combined by late fusion. Nothing is ever trained on rows stitched together from
+different datasets' patients. No Ollama, LLM or GPU needed: everything runs on CPU, and the
+plain-language summary is template-based.
+
+| Encoder | Dataset (file) | Outcome |
+|---|---|---|
+| `uci` | UCI Heart Disease, 4 sites, 920 patients (`datasets/uci/heart_disease_raw.csv`, in repo) | Coronary disease on angiography |
+| `framingham` | Framingham teaching subset, 4,240 (`datasets/framingham/framingham.csv`, in repo) | Coronary heart disease within 10 years |
+| `cardio` | Cardiovascular Disease, 70,000 (`cardio_train.csv`) | Cardiovascular disease at exam |
+| `brfss2015` | CDC BRFSS 2015 indicators, 253,680 (`heart_disease_health_indicators_BRFSS2015.csv`) | Self-reported CHD / heart attack |
+| `key_indicators_2020` | CDC BRFSS 2020 key indicators, 319,795 (`heart_2020_cleaned.csv`) | Self-reported CHD / heart attack |
+| `heart_attack_risk` | Kaggle heart-attack risk, 8,763 (`heart_attack_prediction_dataset.csv`) | "Heart Attack Risk" label |
+| `ecg5000` | ECG5000 heartbeats, 4,998 (`ecg.csv`) | Abnormal beat |
+
+Not used: Kaggle's `heart.csv` and `Heart Attack Data Set.csv`. Both are the UCI Cleveland
+subset; `heart.csv` repeats its 302 unique patients about 3.4 times (so a random split leaks test
+patients into training) and in both files `target` is inverted relative to UCI's `num`
+(`target` 1 = no disease). The `uci` encoder uses the original four-site file instead.
+
+**Encoders.** Tabular datasets use an FT-Transformer (Gorishniy et al., 2021: one token per
+column, [CLS] token, 3 pre-norm transformer layers, d=64, 8 heads) with two extra learned tokens
+per column: *NA* for a value that is blank in the dataset itself, and *MASK* for a value that was
+not provided. Training hides a random 0-50% of each row's values behind MASK, so each encoder
+learns to predict from whatever subset of its columns a patient has. ECG beats use a ViT-style
+patch transformer (14 patches of 10 samples).
+
+**Fusion.** A patient *profile* (`src/multisource/profile.py`: age, sex, blood pressure,
+cholesterol, glucose, smoking, BMI, exercise-test results, survey answers, an ECG beat; every
+field optional) is mapped into each dataset's columns (`src/multisource/sources.py`); columns it
+cannot supply go in as MASK, never guessed. Each encoder's weight is
+`skill x coverage`: skill = 2 x validation AUROC - 1 (an encoder below AUROC 0.55 gets none),
+coverage = the share of that encoder's input importance the profile supplies (under 20%: not
+used). The fused figure is the weighted mean of the encoders' Platt-calibrated log-odds. Because
+the datasets measure different outcomes, it is a composite risk index; every encoder's own
+probability, outcome and the patient's percentile among its held-out patients are reported beside it.
+
+**Evaluation.** Each dataset is split 70/15/15 (stratified, seed 42). Validation drives early
+stopping, calibration, the decision threshold (Youden) and the fusion weight; test is used once.
+Reported per dataset: AUROC with a bootstrap 95% CI, AUPRC, Brier score, expected calibration
+error, sensitivity, specificity, accuracy, F1, and the same split scored by logistic regression and
+gradient-boosted trees as baselines. Results: `checkpoints/multisource/METRICS.md` and `metrics.json`.
+
+**Explainability.** For one patient, each encoder's inputs get exact-baseline Shapley values: an
+input's "absence" is the MASK token the encoder was trained on, so the values add up exactly to
+the patient's log-odds minus the encoder's prior, with no background sample or kernel
+approximation. They are weighted by fusion share and mapped back to profile fields, so the
+report says e.g. "systolic blood pressure raises the risk" once, not once per dataset. Global
+importance is the validation AUROC lost when a column is masked. The result also lists which
+missing measurements would most improve the estimate, and `what_if()` re-scores after changes
+(for the digital twin's sliders).
+
+```bash
+# Put the Kaggle downloads (.csv or the original .csv.zip) in datasets/multisource/ (git-ignored).
+python train_multisource.py                 # all datasets found; ~1-2 h on a 4-core CPU
+python train_multisource.py --smoke         # 2-epoch end-to-end check, under a minute
+python predict_multisource.py --example
+python predict_multisource.py --profile patient.json --what-if '{"smoker": 0, "systolic_bp": 125}'
+python -m pytest tests/test_multisource.py -q
+```
+
+```python
+from src.multisource.fusion import HeartRiskModel
+model = HeartRiskModel.load()
+result = model.predict({"age": 58, "sex": "male", "systolic_bp": 148, "total_cholesterol": 245, "smoker": 1})
+result["risk"], result["band"], result["factors"][:3], result["sources"]
+```
+
+Limits to keep in mind: the survey datasets' outcome is self-reported; Framingham is a teaching
+subset; the Kaggle heart-attack-risk data is widely reported to be synthetic (its encoder scores
+near chance and the fusion gives it no weight); ECG5000 is one patient's heartbeats, so that
+encoder recognises abnormal beat shapes rather than a person's risk.
 
 ## Web app
 
