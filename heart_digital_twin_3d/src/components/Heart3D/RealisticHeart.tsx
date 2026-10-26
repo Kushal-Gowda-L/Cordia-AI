@@ -3,17 +3,19 @@ import { useFrame } from "@react-three/fiber";
 import { ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { liveOutputsRef } from "../../simulation/liveOutputsRef";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createMuscleBumpTexture } from "./muscleTexture";
-import { ARTERY, ATRIUM, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
+import { ARTERY, ATRIUM, AURICLE, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
 
 /**
- * The "Realistic heart" view: the closed heart as an anatomical sculpture
- * styled on a photographic render of a real heart: deep maroon, wet and
- * glossy muscle with darker and brighter blotches and pale patches of fat
- * along the grooves and vessels -- a tapered ventricular body with the coronary arteries and veins
- * raised on its surface, both atria and their auricles, and the great
- * vessels with open, hollow ends: the aortic arch with its three branches,
- * the pulmonary trunk and arteries, the venae cavae and pulmonary veins.
+ * The "Realistic heart" view: the closed heart as an anatomical model,
+ * styled on a sculpted anatomy render: rich red ventricles with the
+ * muscle bundles showing as fine grooves running toward the apex, pale
+ * peach atria with flap-like, scalloped auricles, a branching tree of
+ * coronary arteries (dark red) and cardiac veins (pale grey) laid over the
+ * surface, and the great vessels with open, hollow ends: the aortic arch
+ * with its three branches, the pulmonary trunk and arteries, the venae
+ * cavae and pulmonary veins.
  *
  * It is still the live twin: the ventricles squeeze with the simulated
  * ventricular volume and the atria with the atrial volume, so heart rate,
@@ -23,7 +25,7 @@ import { ARTERY, ATRIUM, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "
  * arch, left pulmonary veins) is on the viewer's right.
  */
 
-const LUMEN = "#2e070a";
+const LUMEN = "#3a0509";
 const VEINS = new Set(["Superior vena cava", "Inferior vena cava", "Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
 const R = 0.95;
 
@@ -36,6 +38,15 @@ const dirOf = (polar: number, azimuth: number) =>
 const BODY_TILT = new THREE.Euler(0, -0.25, 0.35);
 const BODY_SHIFT = new THREE.Vector3(0.02, -0.2, 0);
 
+/** 0-1: how deep in a muscle groove a direction lies (0 on the base and at the very tip). */
+function grooveAt(d: THREE.Vector3): number {
+  const az = Math.atan2(d.z, d.x);
+  // Grooves wind slightly as they descend, like the spiralling muscle layers.
+  const wave = 0.5 + 0.5 * Math.cos(az * 24 + d.y * 2.2 + 1.3 * Math.sin(az * 3 + d.y * 4));
+  const mask = THREE.MathUtils.smoothstep(-d.y, -0.15, 0.25) * (1 - THREE.MathUtils.smoothstep(-d.y, 0.9, 0.99));
+  return Math.pow(wave, 3) * mask;
+}
+
 /** A unit direction -> a point on the ventricular surface (broad base, tapered apex, LV side fuller). */
 function bodyPoint(d: THREE.Vector3): THREE.Vector3 {
   const y = d.y;
@@ -45,79 +56,164 @@ function bodyPoint(d: THREE.Vector3): THREE.Vector3 {
   // Short, rounded base above the equator, long tapering apex below, blended smoothly (no crease).
   const k = 0.5 * (1 + Math.tanh(4 * y));
   const yy = y * R * (1.5 * (1 - k) + 0.72 * k);
-  // Gentle organic unevenness so it doesn't read as a smooth egg.
-  const n = 0.018 * Math.sin(3.1 * d.x + 1.7 * y) * Math.cos(2.3 * d.z + 0.5) + 0.008 * Math.sin(7 * d.x - 5 * y + 3 * d.z);
+  // Gentle organic unevenness so it doesn't read as a smooth egg, and the
+  // muscle bundles as shallow grooves running from the base toward the apex.
+  const n = 0.018 * Math.sin(3.1 * d.x + 1.7 * y) * Math.cos(2.3 * d.z + 0.5) + 0.008 * Math.sin(7 * d.x - 5 * y + 3 * d.z) - 0.04 * grooveAt(d);
   x *= 1 + n;
   return new THREE.Vector3(x, yy * (1 + n), z * (1 + n)).applyEuler(BODY_TILT).add(BODY_SHIFT);
 }
 
-// Surface vessels in [polar, azimuth] over the body (azimuth PI/2 faces the viewer).
-const SURFACE_VESSELS: { path: [number, number][]; width: number }[] = [
-  { path: [[1.1, 1.45], [1.5, 1.5], [1.9, 1.45], [2.3, 1.3], [2.75, 1.0], [3.02, 0.55]], width: 0.026 }, // LAD
-  { path: [[1.5, 1.47], [1.8, 1.17], [2.1, 0.97], [2.45, 0.8]], width: 0.018 }, // first diagonal
-  { path: [[1.95, 1.43], [2.3, 1.18], [2.62, 0.98]], width: 0.015 }, // second diagonal
-  { path: [[1.22, 1.68], [1.65, 1.72], [2.15, 1.66], [2.55, 1.5]], width: 0.016 }, // great cardiac vein
-  { path: [[1.28, 1.95], [1.4, 2.4], [1.46, 2.9], [1.52, 3.4]], width: 0.024 }, // right coronary
-  { path: [[1.43, 2.6], [1.9, 2.55], [2.35, 2.35], [2.6, 2.1]], width: 0.016 }, // acute marginal
-  { path: [[1.16, 1.2], [1.27, 0.7], [1.33, 0.2], [1.38, -0.3]], width: 0.022 }, // circumflex
-  { path: [[1.3, 0.5], [1.8, 0.38], [2.25, 0.32], [2.55, 0.4]], width: 0.016 }, // obtuse marginal
+// Main coronary vessels in [polar, azimuth] over the body (azimuth PI/2 faces the viewer, -PI/2 is the back).
+interface SurfaceVessel {
+  path: [number, number][];
+  width: number;
+  vein: boolean;
+  branches: number;
+}
+const MAIN_VESSELS: SurfaceVessel[] = [
+  { path: [[1.1, 1.45], [1.5, 1.5], [1.9, 1.45], [2.3, 1.3], [2.75, 1.0], [3.02, 0.55]], width: 0.022, vein: false, branches: 7 }, // LAD
+  { path: [[1.28, 1.95], [1.4, 2.4], [1.46, 2.9], [1.52, 3.4], [1.56, 3.9]], width: 0.02, vein: false, branches: 5 }, // right coronary
+  { path: [[1.56, 3.9], [1.95, 4.0], [2.4, 4.15], [2.8, 4.3]], width: 0.016, vein: false, branches: 4 }, // posterior descending
+  { path: [[1.16, 1.2], [1.27, 0.7], [1.33, 0.2], [1.38, -0.3], [1.42, -0.8]], width: 0.019, vein: false, branches: 5 }, // circumflex
+  { path: [[1.3, 0.5], [1.8, 0.38], [2.25, 0.32], [2.6, 0.45]], width: 0.015, vein: false, branches: 4 }, // obtuse marginal
+  { path: [[1.43, 2.6], [1.9, 2.55], [2.35, 2.35], [2.65, 2.1]], width: 0.014, vein: false, branches: 3 }, // acute marginal
+  { path: [[1.2, 1.7], [1.65, 1.75], [2.15, 1.68], [2.6, 1.5]], width: 0.017, vein: true, branches: 5 }, // great cardiac vein
+  { path: [[1.45, -1.45], [1.9, -1.4], [2.35, -1.3], [2.8, -1.1]], width: 0.018, vein: true, branches: 5 }, // middle cardiac vein
+  { path: [[1.4, -0.55], [1.85, -0.65], [2.3, -0.7]], width: 0.014, vein: true, branches: 3 }, // posterior LV vein
+  { path: [[1.38, 2.95], [1.8, 3.05], [2.2, 3.0]], width: 0.012, vein: true, branches: 2 }, // anterior cardiac vein
 ];
 
+/** Deterministic random numbers, so the vessel tree is the same on every load. */
+function rng(seed: number) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
+}
+
+/**
+ * Grows the coronary tree: each main vessel sprouts side branches that head
+ * toward the apex, wander a little and fork again, thinning as they go.
+ */
+function growTree(): { points: [number, number][]; width: number; vein: boolean }[] {
+  const out: { points: [number, number][]; width: number; vein: boolean }[] = [];
+  const rand = rng(97);
+  const grow = (start: [number, number], heading: number, length: number, width: number, vein: boolean, depth: number) => {
+    const pts: [number, number][] = [start];
+    let [pol, az] = start;
+    let h = heading;
+    const steps = Math.max(3, Math.round(length / 0.07));
+    for (let k = 0; k < steps; k++) {
+      h += (rand() - 0.5) * 0.5;
+      // Pulled toward the apex (heading 0 = straight down).
+      h *= 0.9;
+      pol = Math.min(3.05, pol + 0.07 * Math.cos(h));
+      az += (0.07 * Math.sin(h)) / Math.max(0.35, Math.sin(pol));
+      pts.push([pol, az]);
+      if (depth > 0 && k > 1 && rand() < 0.35) {
+        grow([pol, az], h + (rand() < 0.5 ? -1 : 1) * (0.6 + 0.4 * rand()), length * 0.5, width * 0.65, vein, depth - 1);
+      }
+    }
+    out.push({ points: pts, width, vein });
+  };
+  for (const v of MAIN_VESSELS) {
+    out.push({ points: v.path, width: v.width, vein: v.vein });
+    const curve = new THREE.SplineCurve(v.path.map(([p, a]) => new THREE.Vector2(p, a)));
+    for (let b = 0; b < v.branches; b++) {
+      const t = (b + 0.6) / (v.branches + 0.4);
+      const at = curve.getPointAt(t);
+      const side = b % 2 ? 1 : -1;
+      grow([at.x, at.y], side * (0.8 + 0.5 * rand()), 0.35 + 0.35 * rand() * (1 - t * 0.5), v.width * 0.62, v.vein, 2);
+    }
+  }
+  return out;
+}
+
+/** The coronary tree as two merged meshes laid over the ventricles: arteries and veins. */
+function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE.BufferGeometry } {
+  const center = BODY_SHIFT.clone();
+  const arteries: THREE.BufferGeometry[] = [];
+  const veins: THREE.BufferGeometry[] = [];
+  for (const v of growTree()) {
+    // Resample densely in surface coordinates first, so the tube hugs the
+    // curved surface instead of cutting straight chords across it.
+    if (v.points.length < 2) continue;
+    const flat = new THREE.SplineCurve(v.points.map(([a, b]) => new THREE.Vector2(a, b)));
+    const dense = flat.getSpacedPoints(Math.max(4, Math.ceil(flat.getLength() / 0.03)));
+    const pts = dense.map(({ x: pol, y: az }) => {
+      const p = bodyPoint(dirOf(pol, az));
+      // Ride on the surface, half proud of it.
+      return p.add(p.clone().sub(center).normalize().multiplyScalar(v.width * 0.45));
+    });
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubular = Math.max(8, pts.length * 2);
+    const radial = 8;
+    const geo = new THREE.TubeGeometry(curve, tubular, v.width, radial, false);
+    // Taper each vessel toward its tip.
+    const pos = geo.attributes.position;
+    const p = new THREE.Vector3();
+    for (let i = 0; i <= tubular; i++) {
+      const c = curve.getPointAt(i / tubular);
+      const s = 1 - 0.65 * (i / tubular);
+      for (let j = 0; j <= radial; j++) {
+        const k = i * (radial + 1) + j;
+        p.fromBufferAttribute(pos, k).sub(c).multiplyScalar(s).add(c);
+        pos.setXYZ(k, p.x, p.y, p.z);
+      }
+    }
+    geo.computeVertexNormals();
+    (v.vein ? veins : arteries).push(geo);
+  }
+  return { arteries: mergeGeometries(arteries)!, veins: mergeGeometries(veins)! };
+}
+
 function makeBody(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(1, 160, 120);
+  const geo = new THREE.SphereGeometry(1, 200, 150);
   const pos = geo.attributes.position;
   const d = new THREE.Vector3();
   const dirY = new Float32Array(pos.count);
+  const groove = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     d.fromBufferAttribute(pos, i).normalize();
     dirY[i] = d.y;
+    groove[i] = grooveAt(d);
     const p = bodyPoint(d);
     pos.setXYZ(i, p.x, p.y, p.z);
   }
   geo.computeVertexNormals();
+  roughenSurface(geo, 0.008, 3);
 
-  // Raise the coronary vessels as ridges, each in a shallow groove, like the
-  // vessels and their fat-filled sulci on a real heart's surface.
-  const samples: { p: THREE.Vector3; w: number }[] = [];
-  for (const v of SURFACE_VESSELS) {
-    const curve = new THREE.CatmullRomCurve3(v.path.map(([pol, az]) => dirOf(pol, az)));
-    for (const q of curve.getPoints(90)) samples.push({ p: bodyPoint(q.normalize()), w: v.width });
-  }
-  const normal = geo.attributes.normal;
-  const p = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
-  const vessel = new Float32Array(pos.count);
-  const halo = new Float32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) {
-    p.fromBufferAttribute(pos, i);
-    let lift = 0;
-    for (const s of samples) {
-      const dist2 = p.distanceToSquared(s.p);
-      if (dist2 > 0.04) continue;
-      const k = dist2 / (s.w * s.w);
-      lift = Math.max(lift, 0.9 * s.w * Math.exp(-k) - 0.25 * s.w * Math.exp(-k / 9));
-      vessel[i] = Math.max(vessel[i], Math.exp(-k * 1.5));
-      halo[i] = Math.max(halo[i], Math.exp(-k / 16));
-    }
-    if (lift !== 0) {
-      nrm.fromBufferAttribute(normal, i);
-      p.addScaledVector(nrm, lift);
-      pos.setXYZ(i, p.x, p.y, p.z);
-    }
-  }
-  geo.computeVertexNormals();
-  roughenSurface(geo, 0.012, 3);
-
-  // Fat lies in the groove between atria and ventricles and along the coronary vessels;
-  // the apex and the left ventricle's flank are the darkest muscle.
+  // A little pale fat in the groove between atria and ventricles; the
+  // muscle grooves and the apex are the darkest red.
   paintTissue(
     geo,
     MUSCLE,
     7,
-    (i) => Math.max(0.85 * halo[i], 0.8 * Math.exp(-Math.pow((dirY[i] - 0.3) / 0.16, 2)), dirY[i] > 0.3 ? 0.55 : 0),
-    (i) => vessel[i],
-    (q) => 1 - 0.38 * THREE.MathUtils.smoothstep(-q.y, 0.5, 1.5) - 0.12 * THREE.MathUtils.smoothstep(q.x, 0.2, 0.9)
+    (i) => 0.55 * Math.exp(-Math.pow((dirY[i] - 0.32) / 0.12, 2)),
+    () => 0,
+    (q) => 1.12 - 0.35 * THREE.MathUtils.smoothstep(-q.y, 0.7, 1.6)
   );
+  const col = geo.attributes.color;
+  for (let i = 0; i < pos.count; i++) {
+    const k = 1 - 0.5 * groove[i];
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  return geo;
+}
+
+/** An auricle: a thin, flap-like pouch with a scalloped, crinkled edge. */
+function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
+  const geo = new THREE.SphereGeometry(1, 64, 40);
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const ang = Math.atan2(v.z, v.x);
+    const edge = 1 + 0.13 * Math.sin(5 * ang + seed) + 0.07 * Math.sin(11 * ang + 2 * seed);
+    const crinkle = 0.25 * Math.sin(9 * ang + seed) * (1 - Math.abs(v.y));
+    pos.setXYZ(i, v.x * scale[0] * edge, (v.y + crinkle * 0.6) * scale[1], v.z * scale[2] * edge);
+  }
+  geo.computeVertexNormals();
+  roughenSurface(geo, 0.008, seed);
+  paintTissue(geo, AURICLE, seed * 17, (_i, p) => 0.3 * fbm(p, 4, 2, seed));
   return geo;
 }
 
@@ -133,7 +229,7 @@ function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
   }
   geo.computeVertexNormals();
   roughenSurface(geo, 0.01, seed);
-  paintTissue(geo, ATRIUM, seed * 13, (_i, p) => 0.35 * fbm(p, 3, 2, seed));
+  paintTissue(geo, ATRIUM, seed * 13, (_i, p) => 0.3 * fbm(p, 3, 2, seed));
   return geo;
 }
 
@@ -193,11 +289,15 @@ function makeVessel(v: GreatVessel) {
   return { name: v.name, geo, rim: v.open ? rim : null };
 }
 
-const LOBES: { position: V3; rotation: V3; scale: V3; atrium: boolean; seed: number }[] = [
-  { position: [-0.44, 0.3, 0.0], rotation: [0, 0, 0.2], scale: [0.3, 0.28, 0.3], atrium: true, seed: 1 }, // right atrium
-  { position: [0.28, 0.42, -0.34], rotation: [0, 0, 0], scale: [0.42, 0.26, 0.3], atrium: true, seed: 2 }, // left atrium
-  { position: [-0.3, 0.44, 0.24], rotation: [0.3, -0.4, 0.55], scale: [0.18, 0.08, 0.11], atrium: true, seed: 3 }, // right auricle
-  { position: [0.42, 0.42, 0.2], rotation: [0.2, 0.4, -0.7], scale: [0.17, 0.08, 0.1], atrium: true, seed: 4 }, // left auricle
+const LOBES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
+  { position: [-0.46, 0.3, 0.0], rotation: [0, 0, 0.2], scale: [0.3, 0.29, 0.31], seed: 1 }, // right atrium
+  { position: [0.28, 0.42, -0.34], rotation: [0, 0, 0], scale: [0.42, 0.26, 0.3], seed: 2 }, // left atrium
+];
+
+// The auricles hang over the base like ear-shaped flaps either side of the great arteries.
+const AURICLES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
+  { position: [-0.4, 0.4, 0.3], rotation: [0.6, -0.4, 0.7], scale: [0.34, 0.08, 0.22], seed: 3 }, // right auricle
+  { position: [0.52, 0.34, 0.22], rotation: [0.4, 0.55, -0.9], scale: [0.34, 0.08, 0.2], seed: 4 }, // left auricle
 ];
 
 function chamberScale(volume: number, reference: number): number {
@@ -208,6 +308,8 @@ export function RealisticHeart() {
   const body = useMemo(() => makeBody(), []);
   const vessels = useMemo(() => GREAT_VESSELS.map(makeVessel), []);
   const lobes = useMemo(() => LOBES.map((l) => makeLobe(l.scale, 0.05, l.seed)), []);
+  const flaps = useMemo(() => AURICLES.map((l) => makeFlap(l.scale, l.seed)), []);
+  const coronaries = useMemo(() => makeCoronaries(), []);
   const bump = useMemo(() => createMuscleBumpTexture(), []);
 
   const ventricles = useRef<THREE.Group>(null);
@@ -230,29 +332,37 @@ export function RealisticHeart() {
     if (roots.current) roots.current.scale.setScalar(1 + THREE.MathUtils.clamp((out.pAo - 80) / 40, 0, 1) * 0.015);
   });
 
-  // Wet tissue: colour from the painted vertices, a glossy clear coat on top.
+  // Satin tissue: colour from the painted vertices, a soft clear coat on top.
   const skin = (
     <meshPhysicalMaterial
       vertexColors
       color="#ffffff"
-      roughness={0.34}
+      roughness={0.42}
       metalness={0}
-      clearcoat={1}
-      clearcoatRoughness={0.12}
+      clearcoat={0.6}
+      clearcoatRoughness={0.3}
       bumpMap={bump}
-      bumpScale={0.006}
+      bumpScale={0.004}
     />
   );
-  const rimSkin = <meshPhysicalMaterial color="#9a3038" roughness={0.35} clearcoat={1} clearcoatRoughness={0.15} />;
+  const rimSkin = <meshPhysicalMaterial color="#e3998a" roughness={0.45} clearcoat={0.5} clearcoatRoughness={0.3} />;
 
   return (
     <group position={[0, -0.12, 0]} scale={0.88}>
       {/* Pivot near the base, so contraction pulls the apex up toward it. */}
       <group position={[0, 0.35, 0]}>
         <group ref={ventricles}>
-          <mesh geometry={body} position={[0, -0.35, 0]} castShadow>
-            {skin}
-          </mesh>
+          <group position={[0, -0.35, 0]}>
+            <mesh geometry={body} castShadow>
+              {skin}
+            </mesh>
+            <mesh geometry={coronaries.arteries}>
+              <meshPhysicalMaterial color="#7d0711" roughness={0.38} clearcoat={0.7} clearcoatRoughness={0.25} />
+            </mesh>
+            <mesh geometry={coronaries.veins}>
+              <meshPhysicalMaterial color="#c4bcc4" roughness={0.4} clearcoat={0.7} clearcoatRoughness={0.25} />
+            </mesh>
+          </group>
         </group>
       </group>
       <group ref={atria} position={[0, 0.4, -0.1]}>
@@ -260,6 +370,16 @@ export function RealisticHeart() {
           <mesh
             key={i}
             geometry={lobes[i]}
+            position={[l.position[0], l.position[1] - 0.4, l.position[2] + 0.1]}
+            rotation={l.rotation}
+          >
+            {skin}
+          </mesh>
+        ))}
+        {AURICLES.map((l, i) => (
+          <mesh
+            key={`auricle-${i}`}
+            geometry={flaps[i]}
             position={[l.position[0], l.position[1] - 0.4, l.position[2] + 0.1]}
             rotation={l.rotation}
           >
@@ -284,16 +404,16 @@ export function RealisticHeart() {
           </group>
         ))}
       </group>
-      <ContactShadows position={[0, -1.7, 0]} opacity={0.32} blur={2.6} scale={5} far={3.2} color="#3d3335" />
+      <ContactShadows position={[0, -1.7, 0]} opacity={0.5} blur={2.6} scale={5} far={3.2} color="#000000" />
     </group>
   );
 }
 
-/** Soft studio lighting for the realistic view. */
+/** Soft studio lighting for the realistic view, on a dark grey backdrop. */
 export function StudioLights() {
   return (
     <>
-      <hemisphereLight args={["#ffffff", "#9a8f90", 1.1]} />
+      <hemisphereLight args={["#ffffff", "#5a5456", 1.0]} />
       <directionalLight position={[2.5, 3.5, 3]} intensity={2.4} color="#ffffff" />
       <directionalLight position={[-3, 1.5, 2]} intensity={1.0} color="#f4f0ee" />
       <directionalLight position={[0, 2, -3.5]} intensity={1.2} color="#ffffff" />

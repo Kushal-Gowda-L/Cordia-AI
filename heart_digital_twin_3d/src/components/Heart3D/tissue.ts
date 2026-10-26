@@ -3,9 +3,8 @@ import * as THREE from "three";
 /**
  * Colouring for the realistic heart, painted per vertex from 3D noise so it
  * has no texture seams or pinched poles and looks right from every side of
- * the 360-degree turn: deep maroon muscle with darker and brighter wet-red
- * blotches, pale patches of epicardial fat along the grooves and vessels,
- * and redder vessel walls.
+ * the 360-degree turn: rich red muscle with darker and brighter blotches,
+ * pale peach atria and auricles, and red vessel walls.
  */
 
 function hash(x: number, y: number, z: number): number {
@@ -56,10 +55,11 @@ export interface TissuePalette {
   fat: string;
 }
 
-export const MUSCLE: TissuePalette = { dark: "#3a0b10", base: "#6e161d", bright: "#a82630", fat: "#c98d86" };
-export const ATRIUM: TissuePalette = { dark: "#300a0e", base: "#5a1219", bright: "#8e1f27", fat: "#b97c78" };
-export const ARTERY: TissuePalette = { dark: "#5e131a", base: "#952a33", bright: "#c2464e", fat: "#cf8c86" };
-export const VEIN: TissuePalette = { dark: "#4a0f15", base: "#7c1c24", bright: "#a3343b", fat: "#c48a85" };
+export const MUSCLE: TissuePalette = { dark: "#850d16", base: "#a8141e", bright: "#cc2a33", fat: "#d9806f" };
+export const ATRIUM: TissuePalette = { dark: "#a24b48", base: "#c97568", bright: "#e29d8c", fat: "#eebfae" };
+export const AURICLE: TissuePalette = { dark: "#c27a68", base: "#e2a28d", bright: "#f3c3ad", fat: "#f7d6c6" };
+export const ARTERY: TissuePalette = { dark: "#6c0a12", base: "#a3161f", bright: "#c9303a", fat: "#d77b72" };
+export const VEIN: TissuePalette = { dark: "#5a0c18", base: "#8a1b2b", bright: "#a8394a", fat: "#c98088" };
 
 const ca = new THREE.Color();
 const cb = new THREE.Color();

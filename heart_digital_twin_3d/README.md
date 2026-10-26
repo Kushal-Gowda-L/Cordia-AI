@@ -109,15 +109,16 @@ what the shared link in the project thread serves.
 
 ## Realistic heart and 360° rotation
 
-The **Realistic heart** view shows the closed heart as a lifelike anatomical model, styled on a
-photographic render of a real heart (deep maroon, wet and glossy, with darker and brighter blotches
-and pale fat along the grooves and vessels, painted per vertex from 3D noise in
-[`tissue.ts`](src/components/Heart3D/tissue.ts) so it looks right from every side), on a light
-studio backdrop ([`RealisticHeart.tsx`](src/components/Heart3D/RealisticHeart.tsx)):
-a tapered ventricular body with the coronary arteries and veins raised on its surface, both atria
-and auricles, and the great vessels with open, hollow ends (aortic arch with its three branches,
-pulmonary trunk and arteries, venae cavae, pulmonary veins). It still beats with the simulation: the
-ventricles squeeze and twist with the simulated ventricular volume, the atria with atrial volume.
+The **Realistic heart** view shows the closed heart as an anatomical model on a dark grey studio
+backdrop ([`RealisticHeart.tsx`](src/components/Heart3D/RealisticHeart.tsx)), styled on a sculpted
+anatomy render: rich red ventricles with the muscle bundles showing as fine grooves winding toward
+the apex, pale peach atria with flap-like scalloped auricles, a procedurally grown branching tree of
+coronary arteries (dark red) and cardiac veins (pale grey) laid over the surface, and the great
+vessels with open, hollow ends (aortic arch with its three branches, pulmonary trunk and arteries,
+venae cavae, pulmonary veins). Colour is painted per vertex from 3D noise in
+[`tissue.ts`](src/components/Heart3D/tissue.ts), so it looks right from every side. It still beats
+with the simulation: the ventricles (with their vessels) squeeze and twist with the simulated
+ventricular volume, the atria and auricles with atrial volume.
 
 The **Rotate 360°** button (top right of the viewer, any view) turns the heart round continuously;
 the Realistic view starts with it on. Dragging still turns it by hand in any direction.
