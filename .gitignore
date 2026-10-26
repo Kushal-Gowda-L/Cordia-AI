@@ -31,3 +31,7 @@ datasets/echo/
 heart_digital_twin_3d/node_modules/
 heart_digital_twin_3d/dist/
 *.tsbuildinfo
+
+# Multi-source model training data (Kaggle / CDC downloads; see datasets/multisource/README.md)
+datasets/multisource/*
+!datasets/multisource/README.md
