@@ -36,6 +36,77 @@ twin switches to an **offline estimate** instead of failing, and says so in the 
 proxies `/api` to it. The what-if endpoint needs a signed-in user, so open the twin from a
 patient's report in the web app, or sign in there first.
 
+## Use it with any dataset
+
+The left panel's **Drive the heart from** switch has two sources: the CordiaAI model's ten inputs
+(above), or **Your dataset (CSV)**. Dataset mode is for any team member's data; nothing is tied to
+one schema, and nothing leaves the browser.
+
+1. **Load** a CSV (choose or drop a file), or try the bundled UCI or Framingham samples. The reader
+   ([`src/dataset/csv.ts`](src/dataset/csv.ts)) detects the delimiter (`,` `;` tab `|`), a missing
+   header row, and each column's kind, and turns common encodings into numbers: Yes/No and
+   Male/Female columns, age bands such as `55-59`, and a combined blood pressure such as `158/88`
+   (split into systolic and diastolic). Files over 60,000 rows are evenly sampled.
+2. **Outcome to predict**: guessed from the column name (`target`, `num`, `cardio`,
+   `HeartDisease`, `TenYearCHD`, `DEATH_EVENT` ...), changeable. A logistic regression is trained on
+   every other usable column right in the browser ([`src/dataset/riskModel.ts`](src/dataset/riskModel.ts)),
+   checked on a 20% hold-out, and its AUC and accuracy are shown. Choose "None" to drive the heart
+   from the values alone.
+3. **Column matches**: columns are matched by name to the twelve things the heart uses (age, sex,
+   resting and peak heart rate, systolic and diastolic BP, cholesterol, blood sugar, ejection
+   fraction, oxygen saturation, exercise angina, ST depression), and each match can be changed.
+   Units are read per column: age in days or as a survey age-group code, a yes/no "high BP" flag,
+   cholesterol as 1-3 levels or mmol/L, fractions vs. percentages; each reading is stated.
+   ([`src/dataset/mapping.ts`](src/dataset/mapping.ts))
+4. **Pick a row** (number, next/previous, random, or random with/without the outcome). The heart
+   is set up from that row with the same rules as `src/patient_twin.py`; an ejection fraction
+   column, when present, sets pumping strength directly, otherwise the model's risk lowers it.
+5. **Change the row's values**: every value the model uses is a control (slider, yes/no, or
+   category list). Each change re-runs the model and the heart at once; the cards show the change
+   against the row as recorded, and the main heart inputs are marked with a heart.
+
+Checked against every dataset in the project:
+
+| Dataset | Rows | Outcome found | Heart inputs matched | Held-out AUC |
+|---|---|---|---|---|
+| UCI heart disease (920, 4 hospitals) | 920 | `num` | 8 | 0.90 |
+| Kaggle `heart.csv` / Heart Attack Data Set | 1,025 / 303 | `target` | 8 | 0.92 / 0.94 |
+| Framingham | 4,240 | `TenYearCHD` | 7 | 0.74 |
+| cardio_train (`;`, age in days) | 70,000 (60k sample) | `cardio` | 6 | 0.76 |
+| BRFSS 2015 indicators | 253,680 (60k sample) | `HeartDiseaseorAttack` | 5 | 0.85 |
+| CDC 2020 survey (Yes/No, age bands) | 319,795 (60k sample) | `HeartDisease` | 3 | 0.84 |
+| heart_attack_prediction (`158/88` BP) | 8,763 | `Heart Attack Risk` | 7 | 0.51 |
+| ECG beats (no header, 140 samples) | 4,998 | last column | 0 | 0.99 |
+
+The 0.51 on heart_attack_prediction is the data, not the reader: its outcome is close to random
+with respect to its columns. The ECG file has no heart inputs to match, so the heart stays at
+typical values and only the risk (and so pumping strength) follows the model.
+
+## Valve conditions
+
+**Narrowed aortic valve** (aortic stenosis) and **Leaky mitral valve** (mitral regurgitation) sliders
+add valve disease on top of either source. Both now act in the simulation itself, not just on the
+picture:
+
+- Stenosis raises the resistance across the aortic valve with the square of the narrowing, so the
+  left pump has to build pressure well above the aorta to empty. At rest (HR 72, BP 120/80): mild
+  (0.3) peak LV 111 mmHg; moderate (0.6) 137 mmHg, EF 50%; severe (1) 167 mmHg against an aortic
+  pressure near 100, EF 41%, cardiac output 5.8 -> 4.4 L/min. The aortic leaflets open less and turn
+  a calcified yellow-grey.
+- Regurgitation leaks blood back into the left atrium while the LV squeezes, drawn as an orange jet
+  through the mitral valve, whose leaflets no longer close fully. The atrium's pressure and size
+  rise with a systolic v wave, the LV dilates (EDV 150 -> 168 mL at severe), EF looks high (69%)
+  because it counts the leaked blood, and forward output falls (stroke volume 81 -> 74 mL). This is
+  the textbook pattern of chronic mitral regurgitation.
+- Valve leaflets swing open and shut over a few tens of milliseconds instead of snapping, so the
+  valves view shows real opening and closing motion.
+
+## Direct link (no install)
+
+`npm run build:standalone` builds `dist-standalone/`: the whole twin with relative paths and no
+backend (offline model, dataset mode, samples), which works from any static host. That build is
+what the shared link in the project thread serves.
+
 ## Looking inside the heart
 
 Under the heart, **Look inside** has two sliders that work together with the view buttons:

@@ -9,6 +9,10 @@ import { InfoPanel } from "./components/Dashboard/InfoPanel";
 import { PatientSummary } from "./components/Dashboard/PatientSummary";
 import { InputControls } from "./components/Dashboard/InputControls";
 import { RiskCharts } from "./components/Dashboard/RiskCharts";
+import { SourceToggle } from "./components/Dashboard/SourceToggle";
+import { DatasetPanel } from "./components/Dashboard/DatasetPanel";
+import { ValveControls } from "./components/Dashboard/ValveControls";
+import { PATIENT_VIEW } from "./patient/patientTwin";
 import { DEFAULT_INPUTS, fetchPatientTwin, fetchWhatIf, FORCE_OFFLINE, twinRequestPath, type PredictionInputs } from "./patient/patientTwin";
 import { buildOfflineTwin } from "./patient/offlineTwin";
 import { useHeartStore } from "./state/store";
@@ -63,6 +67,7 @@ function useWhatIfSync() {
 export default function App() {
   useInitialTwin();
   useWhatIfSync();
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
   return (
     <div className="app-shell">
       <Header />
@@ -71,8 +76,16 @@ export default function App() {
       </div>
       <main className="app-grid">
         <div className="app-grid-left">
-          <PatientSummary />
-          <InputControls />
+          {!PATIENT_VIEW && <SourceToggle />}
+          {fromDataset ? (
+            <DatasetPanel />
+          ) : (
+            <>
+              <PatientSummary />
+              <InputControls />
+            </>
+          )}
+          {!PATIENT_VIEW && <ValveControls />}
         </div>
         <div className="app-grid-center">
           <Heart3D />

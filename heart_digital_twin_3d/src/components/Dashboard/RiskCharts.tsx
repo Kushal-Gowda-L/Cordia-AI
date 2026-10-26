@@ -37,10 +37,11 @@ export function RiskCharts() {
   const recordTwin = useHeartStore((s) => s.recordTwin);
   const history = useHeartStore((s) => s.riskHistory);
   const hasPatient = useHeartStore((s) => s.patient !== null);
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
   if (!prediction) return null;
 
   const baseline = recordTwin?.prediction;
-  const baselineName = PATIENT_VIEW ? "Your results" : hasPatient ? "Record" : "Starting values";
+  const baselineName = PATIENT_VIEW ? "Your results" : fromDataset ? "Row as recorded" : hasPatient ? "Record" : "Starting values";
   // Step 2 of the reading: disease levels rescaled to add up to 100% among disease cases.
   const bars = DISEASE_LEVELS.map((name) => ({
     name,
@@ -51,7 +52,7 @@ export function RiskCharts() {
 
   return (
     <>
-      {!PATIENT_VIEW && (
+      {!PATIENT_VIEW && !fromDataset && (
       <div className="panel">
         <div className="panel-title">
           <span>If heart disease is present, how severe?</span>
@@ -76,7 +77,7 @@ export function RiskCharts() {
 
       <div className="panel">
         <div className="panel-title">
-          <span>Chance of heart disease as details change</span>
+          <span>{fromDataset ? "Estimated risk as values change" : "Chance of heart disease as details change"}</span>
           <span className="panel-subtitle">
             One point per change &mdash; hover for what changed. Shading: unlikely / borderline / likely zones; dark
             line: the model&rsquo;s {cut}% decision point; dashed line: {baselineName.toLowerCase()}.

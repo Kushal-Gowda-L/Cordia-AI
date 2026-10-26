@@ -28,7 +28,7 @@ const MODEL_ROWS: { key: keyof HeartParams; label: string; unit: string }[] = [
 type SourceKind = "record" | "estimated" | "typical";
 
 function sourceKind(source: string): SourceKind {
-  if (source.startsWith("From record")) return "record";
+  if (source.startsWith("From record") || source.startsWith("From data")) return "record";
   if (source.startsWith("Estimated")) return "estimated";
   return "typical";
 }
@@ -51,8 +51,6 @@ export function PatientSummary() {
   const prediction = useHeartStore((s) => s.prediction);
   const recordTwin = useHeartStore((s) => s.recordTwin);
   const scenarios = useHeartStore((s) => s.scenarios);
-  const scenario = useHeartStore((s) => s.scenario);
-  const setScenario = useHeartStore((s) => s.setScenario);
   const pending = useHeartStore((s) => s.whatIfPending);
   const whatIfError = useHeartStore((s) => s.whatIfError);
   const offline = useHeartStore((s) => s.offline);
@@ -72,7 +70,6 @@ export function PatientSummary() {
   const baseline = recordTwin?.prediction.risk_percent;
   const delta = baseline === undefined ? 0 : prediction.risk_percent - baseline;
   const baselineName = PATIENT_VIEW ? "your results" : patient ? "the record" : "the starting values";
-  const current = scenarios[scenario];
 
   return (
     <div className="panel patient-summary">
@@ -112,6 +109,21 @@ export function PatientSummary() {
 
       {whatIfError && <p className="inline-error">Couldn't update the estimate: {whatIfError}</p>}
 
+      <HeartSetup />
+    </div>
+  );
+}
+
+/** Rest / exercise switch and the table of where each heart setting came from. */
+export function HeartSetup() {
+  const scenarios = useHeartStore((s) => s.scenarios);
+  const scenario = useHeartStore((s) => s.scenario);
+  const setScenario = useHeartStore((s) => s.setScenario);
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
+  if (!scenarios) return null;
+  const current = scenarios[scenario];
+  return (
+    <>
       <div className="panel-label">Show the heart</div>
       <div className="scenario-toggle" role="group" aria-label="Show the heart">
         {SCENARIOS.map((s) => (
@@ -149,10 +161,12 @@ export function PatientSummary() {
           </tbody>
         </table>
         <p className="patient-note">
-          Worked out from {PATIENT_VIEW ? "your results" : "the patient's details"}. The record has no heart-scan data, so values marked
-          &ldquo;Estimated&rdquo; follow set rules &mdash; hover over a row to see the rule.
+          {fromDataset
+            ? "Worked out from the row's values. Settings the dataset has no column for use the stated estimate or a typical value"
+            : `Worked out from ${PATIENT_VIEW ? "your results" : "the patient's details"}. The record has no heart-scan data, so values marked "Estimated" follow set rules`}{" "}
+          &mdash; hover over a row to see the rule.
         </p>
       </details>
-    </div>
+    </>
   );
 }

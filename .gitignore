@@ -30,4 +30,5 @@ datasets/echo/
 # 3D twin frontend build output
 heart_digital_twin_3d/node_modules/
 heart_digital_twin_3d/dist/
+heart_digital_twin_3d/dist-standalone/
 *.tsbuildinfo

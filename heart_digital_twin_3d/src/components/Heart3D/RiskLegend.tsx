@@ -6,6 +6,7 @@ export function RiskLegend() {
   const viewMode = useHeartStore((s) => s.viewMode);
   const reading = useHeartStore((s) => s.prediction?.reading);
   const pending = useHeartStore((s) => s.whatIfPending);
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
   if (viewMode !== "risk" || !reading) return null;
   const tone = reading.band === "unlikely" ? "low" : reading.band === "borderline" ? "mid" : "high";
   return (
@@ -13,7 +14,7 @@ export function RiskLegend() {
       <div className="risk-legend-head">
         <span className={`risk-legend-pct tone-${tone}`}>{reading.disease_percent}%</span>
         <span>
-          {PATIENT_VIEW ? "Chance of heart disease" : "Predicted chance of heart disease"}
+          {PATIENT_VIEW ? "Chance of heart disease" : fromDataset ? "Estimated by the model trained on your data" : "Predicted chance of heart disease"}
           {pending && " · updating…"}
           <br />
           <b>{reading.verdict}</b>

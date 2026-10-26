@@ -195,7 +195,10 @@ so a failure in any one library degrades gracefully rather than breaking the rep
 A separate, standalone React + Three.js (React Three Fiber) application — not part of the
 FastAPI website, since it needs its own Vite dev server (`cd heart_digital_twin_3d
 && npm install && npm run dev`, then open http://localhost:5173). With no backend running it
-falls back to an in-browser offline risk estimate, so that command alone is enough to try it. A real-time, physiologically-simulated 3D heart: two full
+falls back to an in-browser offline risk estimate, so that command alone is enough to try it. It also
+runs on any heart dataset: load a CSV and it matches the columns to the heart, trains a risk model on
+the file's own outcome column in the browser, and lets you pick and edit rows (see
+`heart_digital_twin_3d/README.md`, "Use it with any dataset"). A real-time, physiologically-simulated 3D heart: two full
 ventricle simulations (time-varying elastance + valve flow resistors + Windkessel arterial
 compartments, integrated with RK4 every frame), synchronized ECG and electrical-conduction
 animation, a live Wiggers-style pressure graph, blood-flow particles whose speed is driven by

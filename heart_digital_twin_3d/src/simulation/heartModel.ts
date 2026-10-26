@@ -195,10 +195,17 @@ function stepVentricle(
     const tFrac = ((tt % period) + period) % period / period;
     const E = Emin + (Emax - Emin) * elastanceShape(tFrac, c.systoleFrac, c.relaxFrac);
     const Plv = clamp(E * Math.max(0, V - c.vDead), 0, 350);
-    const rOut = c.rOutflow / Math.max(0.15, 1 - stenosisFactor * 0.85);
+    // Stenosis shrinks the valve opening; resistance across an orifice rises
+    // roughly with the inverse square of its area, so severe stenosis (1)
+    // gives a pressure drop across the valve of ~60 mmHg at peak ejection --
+    // the range echo labs grade as severe -- and moderate (0.5-0.7) ~15-30.
+    const rOut = c.rOutflow * (1 + 40 * stenosisFactor * stenosisFactor);
     const Qin = Math.max(0, (Patrium - Plv) / c.rInflow);
     const Qout = Math.max(0, (Plv - Pao) / rOut);
-    const Qregurg = regurgFraction > 0 ? Math.max(0, Plv - Patrium) * regurgFraction * 0.02 : 0;
+    // Backward leak through an incompetent mitral valve while the ventricle
+    // is above atrial pressure. At severity 1 this returns ~50% of each
+    // beat to the atrium (severe: regurgitant fraction >= 50%); 0.5 ~ 25-30%.
+    const Qregurg = regurgFraction > 0 ? Math.max(0, Plv - Patrium) * regurgFraction * 2.5 : 0;
     const dV = Qin - Qout - Qregurg;
     const dPao = (Qout - Pao / Rsystemic) / c.cArterial;
     return { dV, dPao, Plv, Qin, Qout, Qregurg };
@@ -276,12 +283,17 @@ export class HeartSimulation {
   private prevTFrac = 0;
   private lastBeatEDV = 170;
   private lastBeatESV = 120;
+  // Volume leaked back through the mitral valve this beat / last beat (mL).
+  private beatRegurg = 0;
+  private lastBeatRegurg = 0;
 
   reset(params: HeartParams) {
     this.t = 0;
     this.lv = { V: 120, Pao: params.diastolicBP };
     this.rv = { V: 130, Pao: 15 };
     this.beatMinV = 120;
+    this.beatRegurg = 0;
+    this.lastBeatRegurg = 0;
     this.beatMaxV = 170;
     this.prevTFrac = 0;
   }
@@ -317,7 +329,12 @@ export class HeartSimulation {
     // pressure, so these values (with Emin) set end-diastolic volume:
     // P_LA/Emin + V_dead. Calibrated so a default preload of 50 gives a
     // normal LA pressure near 10 mmHg and an EDV in the 120-170 mL range.
-    const pLA = 3 + 7 * preloadFactor + 4 * kick;
+    // Mitral regurgitation loads the left atrium: its pressure rises (chronic
+    // volume overload, which also fills the LV more -- a dilated LV) and a
+    // systolic "v wave" builds while the jet pours in.
+    const mr = params.mitralRegurgitation;
+    const lvSystole = elastanceShape(tFrac, LV_CONST.systoleFrac, LV_CONST.relaxFrac);
+    const pLA = 3 + 7 * preloadFactor + 4 * kick + mr * (1.5 + 6 * lvSystole);
     const pRA = 1.5 + 3.5 * preloadFactor + 2.5 * kick;
 
     const lvResult = stepVentricle(
@@ -336,6 +353,8 @@ export class HeartSimulation {
     if (newTFrac < this.prevTFrac) {
       this.lastBeatEDV = this.beatMaxV;
       this.lastBeatESV = this.beatMinV;
+      this.lastBeatRegurg = this.beatRegurg;
+      this.beatRegurg = 0;
       this.beatMinV = this.lv.V;
       this.beatMaxV = this.lv.V;
     } else {
@@ -346,9 +365,15 @@ export class HeartSimulation {
 
     const edv = this.lastBeatEDV;
     const esv = this.lastBeatESV;
-    const effectiveStrokeVolume = Math.max(5, edv - esv);
+    this.beatRegurg += lvResult.Qregurg * dt;
+    // Forward stroke volume: what reaches the aorta, i.e. the total emptied
+    // minus what leaked back into the atrium. Cardiac output uses this.
+    const effectiveStrokeVolume = Math.max(5, edv - esv - this.lastBeatRegurg);
     const cardiacOutput = (params.heartRate * effectiveStrokeVolume) / 1000;
-    const ejectionFraction = edv > 0 ? (effectiveStrokeVolume / edv) * 100 : 0;
+    // Ejection fraction counts all the blood the ventricle empties, as an echo
+    // measures it -- so it can look normal in mitral regurgitation even as
+    // forward output falls.
+    const ejectionFraction = edv > 0 ? (Math.max(5, edv - esv) / edv) * 100 : 0;
     const meanArterialPressure = params.diastolicBP + (params.systolicBP - params.diastolicBP) / 3;
     const cardiacWorkload = (params.heartRate * params.systolicBP) / 100; // rate-pressure product / 100
     const lvedp = 5 + 15 * (params.preload / 100);
@@ -366,7 +391,7 @@ export class HeartSimulation {
       ecg: ecgWaveform(newTFrac),
       vLV: this.lv.V,
       vRV: this.rv.V,
-      vLA: 40 + 20 * preloadFactor + 15 * kick,
+      vLA: 40 + 20 * preloadFactor + 15 * kick + mr * (18 + 30 * lvSystole),
       vRA: 35 + 15 * preloadFactor + 12 * kick,
       pLV: lvResult.Plv,
       pRV: rvResult.Plv,

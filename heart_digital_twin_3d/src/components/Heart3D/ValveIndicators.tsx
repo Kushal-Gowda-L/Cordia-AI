@@ -6,6 +6,9 @@ import { liveOutputsRef } from "../../simulation/liveOutputsRef";
 import { useHeartStore } from "../../state/store";
 
 const MAX_OPEN_ANGLE = 1.25; // radians, ~72 degrees
+const LEAFLET = new THREE.Color("#f2e6c9");
+const LEAFLET_OPEN = new THREE.Color("#fff7e0");
+const CALCIFIED = new THREE.Color("#a89466");
 
 export function ValveIndicators() {
   const toggles = useHeartStore((s) => s.toggles);
@@ -15,12 +18,20 @@ export function ValveIndicators() {
   const matRefs = useRef<(THREE.MeshStandardMaterial | null)[][]>(VALVES.map((v) => Array(v.leaflets).fill(null)));
 
   const leafletGeo = useMemo(() => makeLeafletGeometry(), []);
+  const shown = useRef<number[]>(VALVES.map(() => 0));
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const out = liveOutputsRef.current;
     if (!out) return;
+    const { aorticStenosis, mitralRegurgitation } = useHeartStore.getState().valves;
     VALVES.forEach((v, vi) => {
-      const openness = out.valves[v.name];
+      // Leaflets swing open and shut over a few tens of milliseconds, as real
+      // ones do, instead of snapping between states each frame.
+      shown.current[vi] += (out.valves[v.name] - shown.current[vi]) * Math.min(1, delta * 22);
+      let openness = shown.current[vi];
+      // A leaky mitral valve never seals: its leaflets stay slightly apart.
+      if (v.name === "mitral") openness = Math.max(openness, mitralRegurgitation * 0.22);
+      const calcified = v.name === "aortic" ? aorticStenosis : 0;
       const angle = -openness * MAX_OPEN_ANGLE;
       for (let li = 0; li < v.leaflets; li++) {
         const mesh = leafletRefs.current[vi][li];
@@ -29,7 +40,9 @@ export function ValveIndicators() {
         const mat = matRefs.current[vi][li];
         if (mat) {
           mat.emissiveIntensity = openness > 0.05 ? 0.6 + openness * 1.3 : 0.15;
-          mat.color.set(openness > 0.05 ? "#fff7e0" : "#f2e6c9");
+          // A narrowed (stenotic) aortic valve is stiff and calcified: duller and yellow-grey.
+          mat.color.copy(openness > 0.05 ? LEAFLET_OPEN : LEAFLET).lerp(CALCIFIED, calcified * 0.85);
+          mat.emissiveIntensity *= 1 - calcified * 0.6;
         }
       }
     });
@@ -75,5 +88,52 @@ export function ValveIndicators() {
         </group>
       ))}
     </group>
+  );
+}
+
+const JET_COUNT = 36;
+const JET_FROM = new THREE.Vector3(0.39, -0.05, -0.04); // inside the LV, just under the mitral valve
+const JET_TO = new THREE.Vector3(0.5, 0.55, -0.05); // into the left atrium
+
+/**
+ * Mitral regurgitation made visible: while the left pump squeezes, the
+ * simulated backward leak (regurgFlow, mL/s) is drawn as a jet squirting
+ * through the mitral valve into the left atrium. More leak = denser, faster jet.
+ */
+export function RegurgitationJet() {
+  const toggles = useHeartStore((s) => s.toggles);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const t = useRef(Float32Array.from({ length: JET_COUNT }, (_, i) => i / JET_COUNT));
+  const offsets = useMemo(
+    () => Array.from({ length: JET_COUNT }, (_, i) => new THREE.Vector3(Math.sin(i * 2.4) * 0.035, 0, Math.cos(i * 2.4) * 0.035)),
+    []
+  );
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const strength = useRef(0);
+
+  useFrame((_, delta) => {
+    const mesh = meshRef.current;
+    const out = liveOutputsRef.current;
+    if (!mesh || !out) return;
+    const target = THREE.MathUtils.clamp(out.regurgFlow / 60, 0, 1);
+    strength.current += (target - strength.current) * Math.min(1, delta * 12);
+    for (let i = 0; i < JET_COUNT; i++) {
+      t.current[i] = (t.current[i] + delta * (0.6 + 2.2 * strength.current)) % 1;
+      const k = t.current[i];
+      dummy.position.lerpVectors(JET_FROM, JET_TO, k).addScaledVector(offsets[i], k * 1.6);
+      // Each particle shows only while the leak is flowing; the jet fans out as it enters the atrium.
+      dummy.scale.setScalar(strength.current > 0.03 ? 0.022 + 0.02 * k * strength.current : 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  if (!toggles.valves) return null;
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, JET_COUNT]} renderOrder={3}>
+      <sphereGeometry args={[1, 8, 8]} />
+      <meshBasicMaterial color="#ff8a3d" toneMapped={false} transparent opacity={0.9} depthTest={false} />
+    </instancedMesh>
   );
 }

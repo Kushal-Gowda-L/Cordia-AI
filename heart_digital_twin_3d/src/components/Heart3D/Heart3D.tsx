@@ -7,7 +7,7 @@ import { HeartChambers } from "./HeartChambers";
 import { Vessels } from "./Vessels";
 import { BloodFlowParticles } from "./BloodFlowParticles";
 import { ConductionSystem } from "./ConductionSystem";
-import { ValveIndicators } from "./ValveIndicators";
+import { RegurgitationJet, ValveIndicators } from "./ValveIndicators";
 import { CHAMBERS } from "./heartGeometry";
 import { showsInterior, useHeartStore } from "../../state/store";
 import { CutPlane } from "./CutPlane";
@@ -52,6 +52,7 @@ export function Heart3D() {
             <BloodFlowParticles />
             <ConductionSystem />
             <ValveIndicators />
+            <RegurgitationJet />
             <ChamberLabels />
           </group>
         </Suspense>

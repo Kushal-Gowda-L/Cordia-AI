@@ -830,3 +830,118 @@ body,
   padding: 3px 10px;
   font-size: 12px;
 }
+
+/* ------------------------------------------------------ dataset mode */
+.source-toggle {
+  padding-bottom: 12px;
+}
+.drop-zone {
+  display: block;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 8px;
+  padding: 14px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--surface-2);
+}
+.drop-zone b {
+  color: var(--primary);
+}
+.drop-zone.dragging,
+.drop-zone:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.drop-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dataset-meta,
+.model-stats {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.dataset-meta b,
+.model-stats b {
+  color: var(--text);
+}
+.full-select,
+.column-matches select,
+.input-row select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.patient-summary .panel-label {
+  margin-top: 12px;
+}
+.row-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.row-picker input {
+  width: 84px;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.row-of {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.factor-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.factor-list .up {
+  color: var(--danger);
+}
+.factor-list .down {
+  color: var(--success);
+}
+.other-columns summary,
+.column-matches summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--primary);
+  padding: 8px 0 4px;
+}
+.column-matches .unit {
+  color: var(--text-dim);
+}
+.read-notes {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}

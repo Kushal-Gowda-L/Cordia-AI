@@ -23,6 +23,23 @@ export interface StructureToggles {
 
 export type TwinStatus = "loading" | "ready" | "error";
 
+/** Valve disease set directly with the valve controls, on top of whatever the data gives. */
+export interface ValveDisease {
+  aorticStenosis: number; // 0-1
+  mitralRegurgitation: number; // 0-1
+}
+const NO_VALVE_DISEASE: ValveDisease = { aorticStenosis: 0, mitralRegurgitation: 0 };
+
+/** Where the twin's inputs come from: the CordiaAI risk model's ten fields, or a loaded dataset. */
+export type TwinSource = "example" | "dataset";
+
+/** One dataset row turned into a twin (see src/dataset/). No prediction when no outcome column is chosen. */
+export interface DatasetTwin {
+  name: string;
+  prediction: Prediction | null;
+  scenarios: Record<ScenarioKey, TwinScenario>;
+}
+
 export interface RiskPoint {
   step: number;
   risk: number;
@@ -53,6 +70,16 @@ interface HeartStore {
   // (src/patient/offlineTwin.ts) stands in for the server's model.
   offline: boolean;
   setOffline: (offline: boolean) => void;
+
+  valves: ValveDisease;
+  setValves: (patch: Partial<ValveDisease>) => void;
+
+  source: TwinSource;
+  // The example / patient twin as last loaded, so leaving dataset mode can return to it.
+  exampleSnapshot: { twin: PatientTwin; hasPatient: boolean } | null;
+  useExample: () => void;
+  loadDatasetTwin: (twin: DatasetTwin, label: string) => void;
+  applyDatasetTwin: (twin: DatasetTwin, label: string) => void;
 
   // Live simulation output, updated ~20Hz for the 2D dashboard/graphs.
   // The 3D scene reads simulation output every frame directly from the
@@ -106,12 +133,12 @@ export function showsInterior(s: { viewMode: ViewMode; xray: XRaySettings }): bo
   return s.xray.wallOpacity < 0.98 || s.xray.cutDepth > 0;
 }
 
-function scenarioParams(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey): HeartParams {
-  return { ...DEFAULT_PARAMS, ...scenarios[scenario].params };
+function scenarioParams(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey, valves = NO_VALVE_DISEASE): HeartParams {
+  return { ...DEFAULT_PARAMS, ...scenarios[scenario].params, ...valves };
 }
 
-function vitalsFor(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey): Vitals {
-  return steadyStateVitals(scenarioParams(scenarios, scenario));
+function vitalsFor(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey, valves = NO_VALVE_DISEASE): Vitals {
+  return steadyStateVitals(scenarioParams(scenarios, scenario, valves));
 }
 
 function withPoint(history: RiskPoint[], risk: number, label: string): RiskPoint[] {
@@ -140,6 +167,59 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   offline: false,
   setOffline: (offline) => set({ offline }),
 
+  valves: { ...NO_VALVE_DISEASE },
+  setValves: (patch) => {
+    const { scenarios, scenario } = get();
+    const valves = { ...get().valves, ...patch };
+    set(scenarios ? { valves, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) } : { valves });
+  },
+
+  source: "example",
+  exampleSnapshot: null,
+  useExample: () => {
+    const snap = get().exampleSnapshot;
+    set({ source: "example" });
+    if (snap) get().loadTwin(snap.twin, snap.hasPatient);
+  },
+
+  loadDatasetTwin: (twin, label) => {
+    const { valves, scenario } = get();
+    // Vitals of the row as it is in the data (no valve disease), so the cards show the effect of edits and valve changes.
+    const recordVitals = { rest: vitalsFor(twin.scenarios, "rest"), stress: vitalsFor(twin.scenarios, "stress") };
+    const risk = twin.prediction?.risk_percent;
+    set((s) => ({
+      source: "dataset",
+      twinStatus: "ready",
+      twinError: "",
+      patient: { name: twin.name, age: 0, sex: "" },
+      recordTwin: { patient: { name: twin.name, age: 0, sex: "" }, prediction: twin.prediction, scenarios: twin.scenarios } as unknown as PatientTwin,
+      recordInputs: null,
+      prediction: twin.prediction,
+      scenarios: twin.scenarios,
+      params: scenarioParams(twin.scenarios, scenario, valves),
+      recordVitals,
+      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
+      riskHistory: risk === undefined ? [] : withPoint([], risk, label),
+      // Discard any what-if for the example still in flight.
+      whatIfRequestId: s.whatIfRequestId + 1,
+      whatIfPending: false,
+      whatIfError: "",
+      resetToken: s.resetToken + 1,
+    }));
+  },
+
+  applyDatasetTwin: (twin, label) => {
+    const { valves, scenario, riskHistory } = get();
+    const risk = twin.prediction?.risk_percent;
+    set({
+      prediction: twin.prediction,
+      scenarios: twin.scenarios,
+      params: scenarioParams(twin.scenarios, scenario, valves),
+      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
+      riskHistory: risk === undefined ? riskHistory : withPoint(riskHistory, risk, label),
+    });
+  },
+
   liveOutputs: null,
   setLiveOutputs: (o) => set({ liveOutputs: o }),
 
@@ -166,6 +246,8 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const inputs = { ...twin.record };
     const recordVitals = { rest: vitalsFor(twin.scenarios, "rest"), stress: vitalsFor(twin.scenarios, "stress") };
     set((s) => ({
+      exampleSnapshot: { twin, hasPatient },
+      valves: { ...NO_VALVE_DISEASE },
       recordVitals,
       currentVitals: recordVitals.rest,
       twinStatus: "ready",
@@ -191,7 +273,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const toExercise = Boolean(fieldFor(key).exercise) && scenario === "rest" && scenarios !== null;
     set({
       inputs: { ...inputs, [key]: value },
-      ...(toExercise && scenarios ? { scenario: "stress" as const, params: scenarioParams(scenarios, "stress"), currentVitals: vitalsFor(scenarios, "stress") } : {}),
+      ...(toExercise && scenarios ? { scenario: "stress" as const, params: scenarioParams(scenarios, "stress", get().valves), currentVitals: vitalsFor(scenarios, "stress", get().valves) } : {}),
     });
   },
 
@@ -202,13 +284,14 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   },
 
   applyWhatIf: (twin, requested) => {
-    const { appliedInputs, riskHistory, scenario } = get();
+    const { appliedInputs, riskHistory, scenario, valves, source } = get();
+    if (source !== "example") return;
     const label = appliedInputs ? describeChanges(appliedInputs, requested) : "Updated";
     set({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
-      params: scenarioParams(twin.scenarios, scenario),
-      currentVitals: vitalsFor(twin.scenarios, scenario),
+      params: scenarioParams(twin.scenarios, scenario, valves),
+      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
       appliedInputs: requested,
       whatIfPending: false,
       whatIfError: "",
@@ -221,7 +304,8 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   setScenario: (scenario) => {
     const { scenarios } = get();
     if (!scenarios) return;
-    set({ scenario, params: scenarioParams(scenarios, scenario), currentVitals: vitalsFor(scenarios, scenario) });
+    const { valves } = get();
+    set({ scenario, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) });
   },
 
   resetToRecord: () => {
@@ -234,6 +318,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       prediction: recordTwin.prediction,
       scenarios: recordTwin.scenarios,
       scenario: "rest",
+      valves: { ...NO_VALVE_DISEASE },
       params: scenarioParams(recordTwin.scenarios, "rest"),
       currentVitals: recordVitals ? recordVitals.rest : null,
       riskHistory: changed

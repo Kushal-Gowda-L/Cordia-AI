@@ -1,5 +1,6 @@
 import { PATIENT_VIEW } from "../../patient/patientTwin";
 import { useHeartStore } from "../../state/store";
+import { useDatasetStore } from "../../dataset/datasetStore";
 
 // Inside the CordiaAI dashboard the page already shows the title, so the
 // embedded twin shows only its controls.
@@ -13,6 +14,12 @@ export function Header() {
   const resetToRecord = useHeartStore((s) => s.resetToRecord);
   const canReset = useHeartStore((s) => s.recordTwin !== null);
   const patient = useHeartStore((s) => s.patient);
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
+  const reset = () => {
+    useHeartStore.getState().setValves({ aorticStenosis: 0, mitralRegurgitation: 0 });
+    if (fromDataset) useDatasetStore.getState().resetRow();
+    else resetToRecord();
+  };
 
   return (
     <header className="app-header">
@@ -28,8 +35,8 @@ export function Header() {
         <button type="button" className="btn" onClick={togglePaused}>
           {paused ? "Resume" : "Pause"}
         </button>
-        <button type="button" className="btn" onClick={resetToRecord} disabled={!canReset}>
-          {PATIENT_VIEW ? "Back to my results" : patient ? "Reset to record" : "Reset"}
+        <button type="button" className="btn" onClick={reset} disabled={!canReset}>
+          {PATIENT_VIEW ? "Back to my results" : fromDataset ? "Reset row" : patient ? "Reset to record" : "Reset"}
         </button>
         <label className="speed-control">
           Speed
