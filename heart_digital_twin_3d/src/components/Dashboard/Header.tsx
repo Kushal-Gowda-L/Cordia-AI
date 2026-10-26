@@ -1,6 +1,7 @@
 import { PATIENT_VIEW } from "../../patient/patientTwin";
 import { useHeartStore } from "../../state/store";
 import { useDatasetStore } from "../../dataset/datasetStore";
+import { DIGITAL } from "../../variant";
 
 // Inside the CordiaAI dashboard the page already shows the title, so the
 // embedded twin shows only its controls.
@@ -25,8 +26,13 @@ export function Header() {
     <header className="app-header">
       {!EMBEDDED ? (
         <div>
-          <div className="app-header-title">Digital twin{patient ? ` — ${patient.name}` : ""}</div>
-          <div className="app-header-sub">CordiaAI &middot; simulated heart based on the details shown</div>
+          <div className="app-header-title">
+            {DIGITAL ? "Holographic digital twin" : "Digital twin"}
+            {patient ? ` — ${patient.name}` : ""}
+          </div>
+          <div className="app-header-sub">
+            CordiaAI &middot; {DIGITAL ? "live 3D heart for any team dataset" : "simulated heart based on the details shown"}
+          </div>
         </div>
       ) : (
         <div className="app-header-sub">Simulated heart based on the details shown</div>

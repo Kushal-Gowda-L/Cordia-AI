@@ -107,6 +107,26 @@ picture:
 backend (offline model, dataset mode, samples), which works from any static host. That build is
 what the shared link in the project thread serves.
 
+## Holographic twin (`digital.html`)
+
+A second page, [`digital.html`](digital.html), is the same twin (same panels, example patient,
+**Your dataset (CSV)** mode, valve conditions, ECG and pressure charts) with a dark holographic theme
+and three extra views, built on the realistic heart's anatomy
+([`DigitalHeart.tsx`](src/components/Heart3D/DigitalHeart.tsx)):
+
+- **Hologram**: a glowing see-through blue shell traced with fine muscle fibres; coronary arteries in
+  red with a pulse wave running down them each beat, cardiac veins in cyan; aorta glowing red with
+  the pressure.
+- **Low-poly mesh**: the heart as a faceted blue mesh with its wireframe and glowing nodes.
+- **Red + blue**: the realistic heart and its holographic twin side by side, each turning in place.
+
+All three show the four valves inside (cusps open and shut with the simulation, the ring flashes as
+a valve closes, a narrowed aortic valve turns amber, a leaky mitral valve stays apart and turns red),
+blood flowing through the great vessels at the simulated rates (red oxygen-rich, blue oxygen-poor),
+and live read-outs (heart rate, pressure, EF, output, valve states) over the viewer. The page ends
+with the design reference images (`public/references/`), each with a button to show that look.
+In dev open `http://localhost:5173/digital.html`; both pages are in every build.
+
 ## Realistic heart and 360° rotation
 
 The **Realistic heart** view shows the closed heart as an anatomical model on a dark grey studio

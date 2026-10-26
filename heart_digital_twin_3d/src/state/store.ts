@@ -1,10 +1,28 @@
 import { create } from "zustand";
+import { DIGITAL } from "../variant";
 import { DEFAULT_PARAMS, HeartOutputs, HeartParams } from "../simulation/heartModel";
 import type { PatientTwin, Prediction, PredictionInputs, ScenarioKey, TwinScenario } from "../patient/patientTwin";
 import { steadyStateVitals, type Vitals } from "../simulation/steadyState";
 import { describeChanges, fieldFor, type InputKey } from "../patient/inputFields";
 
-export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "risk" | "realistic";
+export type ViewMode =
+  | "anatomy"
+  | "chambers"
+  | "bloodFlow"
+  | "pressure"
+  | "valves"
+  | "electrical"
+  | "risk"
+  | "realistic"
+  // Holographic twin only (digital.html):
+  | "hologram"
+  | "lowpoly"
+  | "dual";
+
+/** Views showing a whole, closed model heart (no cutaway), which start turning when chosen. */
+export function isModelView(m: ViewMode): boolean {
+  return m === "realistic" || m === "hologram" || m === "lowpoly" || m === "dual";
+}
 
 /** How to look inside the closed heart: a see-through wall and a slicing plane. */
 export interface XRaySettings {
@@ -159,11 +177,11 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   speed: 1,
   setSpeed: (s) => set({ speed: s }),
 
-  viewMode: "chambers",
-  // The realistic heart is made to be looked at all round, so it starts turning.
-  setViewMode: (m) => set(m === "realistic" ? { viewMode: m, autoRotate: true } : { viewMode: m }),
+  viewMode: DIGITAL ? "hologram" : "chambers",
+  // The model hearts are made to be looked at all round, so they start turning.
+  setViewMode: (m) => set(isModelView(m) ? { viewMode: m, autoRotate: true } : { viewMode: m }),
 
-  autoRotate: false,
+  autoRotate: DIGITAL,
   setAutoRotate: (on) => set({ autoRotate: on }),
 
   toggles: { ...DEFAULT_TOGGLES },

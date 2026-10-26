@@ -1,5 +1,5 @@
-import { Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useRef, type ReactNode } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { SimulationDriver } from "./SimulationDriver";
@@ -13,6 +13,18 @@ import { showsInterior, useHeartStore } from "../../state/store";
 import { CutPlane } from "./CutPlane";
 import { RiskLegend } from "./RiskLegend";
 import { RealisticHeart, StudioLights } from "./RealisticHeart";
+import { DigitalHeart, DigitalLights } from "./DigitalHeart";
+import { HoloHud } from "./HoloHud";
+import { DIGITAL } from "../../variant";
+
+/** Turns its contents round on the spot (for the side-by-side view, where each heart spins in place). */
+function Spinner({ on, children }: { on: boolean; children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (on && ref.current) ref.current.rotation.y += delta * 0.5;
+  });
+  return <group ref={ref}>{children}</group>;
+}
 
 function ChamberLabels() {
   const toggles = useHeartStore((s) => s.toggles);
@@ -30,17 +42,22 @@ function ChamberLabels() {
 }
 
 export function Heart3D() {
-  const realistic = useHeartStore((s) => s.viewMode === "realistic");
+  const viewMode = useHeartStore((s) => s.viewMode);
+  const realistic = viewMode === "realistic";
+  const digital = viewMode === "hologram" || viewMode === "lowpoly" || viewMode === "dual";
   const autoRotate = useHeartStore((s) => s.autoRotate);
   const setAutoRotate = useHeartStore((s) => s.setAutoRotate);
+  const backdrop = digital || (DIGITAL && realistic) ? "holo" : realistic ? "studio" : "";
   return (
-    <div className={`heart3d-canvas ${realistic ? "studio" : ""}`}>
+    <div className={`heart3d-canvas ${backdrop}`}>
       <Canvas
         camera={{ position: [0, 0.3, 4.2], fov: 42 }}
         gl={{ antialias: true, localClippingEnabled: true, alpha: true }}
         dpr={[1, 1.75]}
       >
-        {realistic ? (
+        {digital ? (
+          viewMode === "dual" ? <StudioLights /> : <DigitalLights />
+        ) : realistic ? (
           <StudioLights />
         ) : (
           <>
@@ -55,7 +72,23 @@ export function Heart3D() {
         )}
         <Suspense fallback={null}>
           <SimulationDriver />
-          {realistic ? (
+          {viewMode === "dual" ? (
+            // The red heart and its blue digital twin side by side, each turning in place.
+            <>
+              <group position={[-1.1, 0.12, 0]} scale={0.66}>
+                <Spinner on={autoRotate}>
+                  <RealisticHeart shadow={false} />
+                </Spinner>
+              </group>
+              <group position={[1.1, 0.12, 0]} scale={0.66}>
+                <Spinner on={autoRotate}>
+                  <DigitalHeart look="hologram" />
+                </Spinner>
+              </group>
+            </>
+          ) : digital ? (
+            <DigitalHeart look={viewMode === "lowpoly" ? "lowpoly" : "hologram"} />
+          ) : realistic ? (
             <RealisticHeart />
           ) : (
             <>
@@ -79,7 +112,7 @@ export function Heart3D() {
           minDistance={1.8}
           maxDistance={9}
           target={[0, 0, 0]}
-          autoRotate={autoRotate}
+          autoRotate={autoRotate && viewMode !== "dual"}
           autoRotateSpeed={2.4}
           makeDefault
         />
@@ -94,6 +127,7 @@ export function Heart3D() {
         <span aria-hidden="true">&#10227;</span> {autoRotate ? "Rotating 360°" : "Rotate 360°"}
       </button>
       <RiskLegend />
+      {DIGITAL && <HoloHud />}
     </div>
   );
 }

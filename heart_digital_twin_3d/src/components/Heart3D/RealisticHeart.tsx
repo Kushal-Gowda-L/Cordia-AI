@@ -26,17 +26,17 @@ import { ARTERY, ATRIUM, AURICLE, MUSCLE, VEIN, fbm, paintTissue, roughenSurface
  */
 
 const LUMEN = "#3a0509";
-const VEINS = new Set(["Superior vena cava", "Inferior vena cava", "Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
+export const VEINS = new Set(["Superior vena cava", "Inferior vena cava", "Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
 const R = 0.95;
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 
-const dirOf = (polar: number, azimuth: number) =>
+export const dirOf = (polar: number, azimuth: number) =>
   new THREE.Vector3(Math.sin(polar) * Math.cos(azimuth), Math.cos(polar), Math.sin(polar) * Math.sin(azimuth));
 
 // Tilt so the apex points down and to the viewer's right, as in the chest.
-const BODY_TILT = new THREE.Euler(0, -0.25, 0.35);
-const BODY_SHIFT = new THREE.Vector3(0.02, -0.2, 0);
+export const BODY_TILT = new THREE.Euler(0, -0.25, 0.35);
+export const BODY_SHIFT = new THREE.Vector3(0.02, -0.2, 0);
 
 /** 0-1: how deep in a muscle groove a direction lies (0 on the base and at the very tip). */
 function grooveAt(d: THREE.Vector3): number {
@@ -48,7 +48,7 @@ function grooveAt(d: THREE.Vector3): number {
 }
 
 /** A unit direction -> a point on the ventricular surface (broad base, tapered apex, LV side fuller). */
-function bodyPoint(d: THREE.Vector3): THREE.Vector3 {
+export function bodyPoint(d: THREE.Vector3): THREE.Vector3 {
   const y = d.y;
   const taper = y < 0 ? 1 - 0.6 * Math.pow(-y, 1.25) : 1 - 0.08 * y * y;
   let x = d.x * R * taper * (d.x > 0 ? 1.08 : 0.96);
@@ -93,7 +93,7 @@ function rng(seed: number) {
  * Grows the coronary tree: each main vessel sprouts side branches that head
  * toward the apex, wander a little and fork again, thinning as they go.
  */
-function growTree(): { points: [number, number][]; width: number; vein: boolean }[] {
+export function growTree(): { points: [number, number][]; width: number; vein: boolean }[] {
   const out: { points: [number, number][]; width: number; vein: boolean }[] = [];
   const rand = rng(97);
   const grow = (start: [number, number], heading: number, length: number, width: number, vein: boolean, depth: number) => {
@@ -127,22 +127,29 @@ function growTree(): { points: [number, number][]; width: number; vein: boolean 
   return out;
 }
 
+/**
+ * A surface path in [polar, azimuth] as 3D points riding just proud of the
+ * ventricles. Resampled densely in surface coordinates first, so anything
+ * drawn along it hugs the curved surface instead of cutting straight chords
+ * across it.
+ */
+export function surfacePolyline(points: [number, number][], lift: number, spacing = 0.03): THREE.Vector3[] {
+  const flat = new THREE.SplineCurve(points.map(([a, b]) => new THREE.Vector2(a, b)));
+  const dense = flat.getSpacedPoints(Math.max(4, Math.ceil(flat.getLength() / spacing)));
+  return dense.map(({ x: pol, y: az }) => {
+    const p = bodyPoint(dirOf(pol, az));
+    return p.add(p.clone().sub(BODY_SHIFT).normalize().multiplyScalar(lift));
+  });
+}
+
 /** The coronary tree as two merged meshes laid over the ventricles: arteries and veins. */
-function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE.BufferGeometry } {
-  const center = BODY_SHIFT.clone();
+export function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE.BufferGeometry } {
   const arteries: THREE.BufferGeometry[] = [];
   const veins: THREE.BufferGeometry[] = [];
   for (const v of growTree()) {
-    // Resample densely in surface coordinates first, so the tube hugs the
-    // curved surface instead of cutting straight chords across it.
     if (v.points.length < 2) continue;
-    const flat = new THREE.SplineCurve(v.points.map(([a, b]) => new THREE.Vector2(a, b)));
-    const dense = flat.getSpacedPoints(Math.max(4, Math.ceil(flat.getLength() / 0.03)));
-    const pts = dense.map(({ x: pol, y: az }) => {
-      const p = bodyPoint(dirOf(pol, az));
-      // Ride on the surface, half proud of it.
-      return p.add(p.clone().sub(center).normalize().multiplyScalar(v.width * 0.45));
-    });
+    // Ride on the surface, half proud of it.
+    const pts = surfacePolyline(v.points, v.width * 0.45);
     const curve = new THREE.CatmullRomCurve3(pts);
     const tubular = Math.max(8, pts.length * 2);
     const radial = 8;
@@ -165,7 +172,7 @@ function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE.Buffer
   return { arteries: mergeGeometries(arteries)!, veins: mergeGeometries(veins)! };
 }
 
-function makeBody(): THREE.BufferGeometry {
+export function makeBody(): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 200, 150);
   const pos = geo.attributes.position;
   const d = new THREE.Vector3();
@@ -200,7 +207,7 @@ function makeBody(): THREE.BufferGeometry {
 }
 
 /** An auricle: a thin, flap-like pouch with a scalloped, crinkled edge. */
-function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
+export function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 64, 40);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
@@ -218,7 +225,7 @@ function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
 }
 
 /** A soft lobe (atrium or auricle): a squashed, slightly lumpy sphere. */
-function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
+export function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 48, 36);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
@@ -233,7 +240,7 @@ function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
   return geo;
 }
 
-interface GreatVessel {
+export interface GreatVessel {
   name: string;
   points: V3[];
   radius: number;
@@ -242,7 +249,7 @@ interface GreatVessel {
   open: boolean; // last point is an open, cut end
 }
 
-const GREAT_VESSELS: GreatVessel[] = [
+export const GREAT_VESSELS: GreatVessel[] = [
   // The aorta rises behind the pulmonary trunk and arches back and to the heart's left.
   { name: "Aorta", points: [[0.02, 0.2, 0.0], [-0.05, 0.6, 0.06], [-0.04, 0.98, 0.0], [0.12, 1.16, -0.2], [0.38, 1.08, -0.42], [0.5, 0.75, -0.55], [0.52, 0.2, -0.6], [0.5, -0.45, -0.6]], radius: 0.19, open: true },
   { name: "Brachiocephalic trunk", points: [[-0.04, 1.08, -0.08], [-0.1, 1.35, -0.08], [-0.16, 1.58, -0.08]], radius: 0.075, taper: 0.85, open: true },
@@ -259,7 +266,7 @@ const GREAT_VESSELS: GreatVessel[] = [
   { name: "Right pulmonary veins", points: [[0.05, 0.42, -0.5], [-0.35, 0.44, -0.58], [-0.62, 0.48, -0.6]], radius: 0.066, open: true },
 ];
 
-function makeVessel(v: GreatVessel) {
+export function makeVessel(v: GreatVessel) {
   const curve = new THREE.CatmullRomCurve3(v.points.map((p) => new THREE.Vector3(...p)));
   const tubular = 64;
   const radial = 28;
@@ -289,22 +296,22 @@ function makeVessel(v: GreatVessel) {
   return { name: v.name, geo, rim: v.open ? rim : null };
 }
 
-const LOBES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
+export const LOBES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
   { position: [-0.46, 0.3, 0.0], rotation: [0, 0, 0.2], scale: [0.3, 0.29, 0.31], seed: 1 }, // right atrium
   { position: [0.28, 0.42, -0.34], rotation: [0, 0, 0], scale: [0.42, 0.26, 0.3], seed: 2 }, // left atrium
 ];
 
 // The auricles hang over the base like ear-shaped flaps either side of the great arteries.
-const AURICLES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
+export const AURICLES: { position: V3; rotation: V3; scale: V3; seed: number }[] = [
   { position: [-0.4, 0.4, 0.3], rotation: [0.6, -0.4, 0.7], scale: [0.34, 0.08, 0.22], seed: 3 }, // right auricle
   { position: [0.52, 0.34, 0.22], rotation: [0.4, 0.55, -0.9], scale: [0.34, 0.08, 0.2], seed: 4 }, // left auricle
 ];
 
-function chamberScale(volume: number, reference: number): number {
+export function chamberScale(volume: number, reference: number): number {
   return THREE.MathUtils.clamp(Math.pow(Math.max(volume, 0) / reference, 0.6), 0.5, 1.3);
 }
 
-export function RealisticHeart() {
+export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
   const body = useMemo(() => makeBody(), []);
   const vessels = useMemo(() => GREAT_VESSELS.map(makeVessel), []);
   const lobes = useMemo(() => LOBES.map((l) => makeLobe(l.scale, 0.05, l.seed)), []);
@@ -404,7 +411,7 @@ export function RealisticHeart() {
           </group>
         ))}
       </group>
-      <ContactShadows position={[0, -1.7, 0]} opacity={0.5} blur={2.6} scale={5} far={3.2} color="#000000" />
+      {shadow && <ContactShadows position={[0, -1.7, 0]} opacity={0.5} blur={2.6} scale={5} far={3.2} color="#000000" />}
     </group>
   );
 }

@@ -1,6 +1,14 @@
-import { StructureToggles, useHeartStore, ViewMode } from "../../state/store";
+import { isModelView, StructureToggles, useHeartStore, ViewMode } from "../../state/store";
+import { DIGITAL } from "../../variant";
+
+const DIGITAL_MODES: { id: ViewMode; label: string; hint: string }[] = [
+  { id: "hologram", label: "Hologram", hint: "A glowing see-through heart with its fibres, arteries, valves and blood flow" },
+  { id: "lowpoly", label: "Low-poly mesh", hint: "The heart as a faceted digital mesh with its wireframe and nodes" },
+  { id: "dual", label: "Red + blue", hint: "The realistic heart and its digital twin side by side" },
+];
 
 const MODES: { id: ViewMode; label: string; hint: string }[] = [
+  ...(DIGITAL ? DIGITAL_MODES : []),
   { id: "realistic", label: "Realistic heart", hint: "A lifelike outer heart, turning so you can see it from every side" },
   { id: "anatomy", label: "Outside", hint: "The heart as seen from outside" },
   { id: "chambers", label: "Inside", hint: "Opened up to show the four chambers" },
@@ -69,14 +77,14 @@ export function ViewModeToggle() {
           />
           <output>{Math.round((1 - xray.wallOpacity) * 100)}%</output>
         </label>
-        <label className="xray-slider" title={viewMode === "realistic" ? "Applies to every view except Realistic heart" : "Slices the heart from the front, like a dissection"}>
+        <label className="xray-slider" title={isModelView(viewMode) ? "Applies to the clinical views (Outside, Inside, ...)" : "Slices the heart from the front, like a dissection"}>
           Cut away front
           <input
             type="range"
             min={0}
             max={100}
             step={1}
-            disabled={viewMode === "realistic"}
+            disabled={isModelView(viewMode)}
             value={Math.round(xray.cutDepth * 100)}
             onChange={(e) => setXRay({ cutDepth: Number(e.target.value) / 100 })}
           />

@@ -16,6 +16,8 @@ import { PATIENT_VIEW } from "./patient/patientTwin";
 import { DEFAULT_INPUTS, fetchPatientTwin, fetchWhatIf, FORCE_OFFLINE, twinRequestPath, type PredictionInputs } from "./patient/patientTwin";
 import { buildOfflineTwin } from "./patient/offlineTwin";
 import { useHeartStore } from "./state/store";
+import { DIGITAL } from "./variant";
+import { ReferenceGallery } from "./components/Dashboard/ReferenceGallery";
 
 // Opened from an assessment (?patient=<id> or ?self=1) the twin starts from
 // that patient's record; opened on its own it starts from typical values.
@@ -69,7 +71,7 @@ export default function App() {
   useWhatIfSync();
   const fromDataset = useHeartStore((s) => s.source === "dataset");
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${DIGITAL ? "theme-digital" : ""}`}>
       <Header />
       <div className="app-banner">
         Decision-support visualisation, simulated from the details shown &mdash; not a diagnostic measurement.
@@ -99,6 +101,7 @@ export default function App() {
           <InfoPanel />
         </div>
       </main>
+      {DIGITAL && <ReferenceGallery />}
     </div>
   );
 }
