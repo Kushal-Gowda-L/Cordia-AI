@@ -55,6 +55,7 @@ export function PatientSummary() {
   const setScenario = useHeartStore((s) => s.setScenario);
   const pending = useHeartStore((s) => s.whatIfPending);
   const whatIfError = useHeartStore((s) => s.whatIfError);
+  const offline = useHeartStore((s) => s.offline);
 
   if (status === "loading") return <div className="panel">Loading patient details&hellip;</div>;
   if (status === "error" || !prediction || !scenarios) {
@@ -101,6 +102,13 @@ export function PatientSummary() {
           </div>
         )}
       </div>
+
+      {offline && (
+        <p className="offline-note">
+          Offline estimate: the CordiaAI server isn&rsquo;t connected, so a lighter model running in this browser (logistic
+          regression on the same ten details, AUC 0.88) stands in for the full model.
+        </p>
+      )}
 
       {whatIfError && <p className="inline-error">Couldn't update the estimate: {whatIfError}</p>}
 

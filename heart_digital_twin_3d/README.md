@@ -6,13 +6,61 @@ clinical medical device — this is stated inside the app itself, not just here.
 
 ## Run it locally
 
+Needs Node.js 18 or newer. From the repository root:
+
 ```bash
-cd cordia_ai/heart_digital_twin_3d
+cd heart_digital_twin_3d
 npm install
 npm run dev
 ```
 
-Then open the URL Vite prints (default `http://localhost:5173`).
+Then open the URL Vite prints (default `http://localhost:5173`). It renders with WebGL, so it runs
+on your graphics card in any current browser; no other setup is needed.
+
+**On its own (no backend).** Opened without a patient and with no CordiaAI backend running, the
+twin switches to an **offline estimate** instead of failing, and says so in the left panel. Add
+`?offline=1` to the URL to force it even when a backend is up. The offline estimate
+([`src/patient/offlineTwin.ts`](src/patient/offlineTwin.ts)) is:
+
+- a multinomial logistic regression on the same ten inputs and five severity classes as the
+  server's model, fitted on `datasets/uci/heart_disease_raw.csv` (all 920 rows; a cholesterol or BP
+  of 0 treated as missing and median-filled). 5-fold cross-validated: disease vs. no disease
+  AUC 0.88, accuracy 79%; five-class accuracy 56%. A lighter stand-in, not the production model.
+  Unlike the server's model it raises risk with cholesterol, so the cholesterol caution is hidden
+  in offline mode.
+- a line-for-line port of [`src/patient_twin.py`](../src/patient_twin.py) and
+  [`src/risk_reading.py`](../src/risk_reading.py), so the heart is set up exactly as the server
+  would set it up.
+
+**With the backend.** Start the FastAPI app on port 8000 (see the main README); `npm run dev`
+proxies `/api` to it. The what-if endpoint needs a signed-in user, so open the twin from a
+patient's report in the web app, or sign in there first.
+
+## Looking inside the heart
+
+Under the heart, **Look inside** has two sliders that work together with the view buttons:
+
+- **See-through wall** (Outside and Risk views) fades the outer heart muscle from solid to
+  glass-like, revealing the four chambers, the valves opening and closing, the papillary muscles and
+  chordae, the septum and the blood inside, all still beating.
+- **Cut away front** (every view) slices the whole heart with a front-to-back plane, like a
+  dissection: the chamber walls show in cross-section (the LV wall visibly ~2.5x the RV's). The
+  plane is fixed to the heart, so orbiting shows the cut from any side.
+
+**Close up** puts both back. The outer heart also carries the coronary arteries (left anterior
+descending with a diagonal branch, circumflex, right coronary with a marginal branch), following the
+common right-dominant pattern.
+
+## Risk view
+
+The **Risk** view colours the heart by the predicted chance of heart disease, from the server's
+model or the offline estimate: green below 35%, amber around the 50% decision point, red from 65%
+(the same display zones as `src/risk_reading.py`). The coronary arteries take the colour and pulse
+more strongly with each beat at higher risk, and a shading over the ventricles grows with the
+estimate, strongest over the left anterior descending artery's territory (front of the LV, the
+front of the septum and the apex), where coronary disease most often shows. A legend on the canvas
+gives the figure and verdict. Every input change updates it within a moment. The shading marks
+where disease commonly appears; it is not a perfusion scan of this patient's heart.
 
 ## Per-patient digital twin (inside CordiaAI)
 

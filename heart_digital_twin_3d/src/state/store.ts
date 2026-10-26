@@ -4,7 +4,13 @@ import type { PatientTwin, Prediction, PredictionInputs, ScenarioKey, TwinScenar
 import { steadyStateVitals, type Vitals } from "../simulation/steadyState";
 import { describeChanges, fieldFor, type InputKey } from "../patient/inputFields";
 
-export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "cutaway";
+export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "risk";
+
+/** How to look inside the closed heart: a see-through wall and a slicing plane. */
+export interface XRaySettings {
+  wallOpacity: number; // 0.1 (glass) .. 1 (solid) -- the outer heart muscle
+  cutDepth: number; // 0 (no cut) .. 1 (sliced to the back); front-to-back plane
+}
 
 export interface StructureToggles {
   chambers: boolean;
@@ -39,6 +45,14 @@ interface HeartStore {
 
   toggles: StructureToggles;
   toggleStructure: (key: keyof StructureToggles) => void;
+
+  xray: XRaySettings;
+  setXRay: (patch: Partial<XRaySettings>) => void;
+
+  // True when the backend couldn't be reached and the in-browser estimate
+  // (src/patient/offlineTwin.ts) stands in for the server's model.
+  offline: boolean;
+  setOffline: (offline: boolean) => void;
 
   // Live simulation output, updated ~20Hz for the 2D dashboard/graphs.
   // The 3D scene reads simulation output every frame directly from the
@@ -86,6 +100,12 @@ const DEFAULT_TOGGLES: StructureToggles = {
   labels: true,
 };
 
+/** Whether the chambers inside are on show: always in the opened views, and in the closed ones once see-through or cut. */
+export function showsInterior(s: { viewMode: ViewMode; xray: XRaySettings }): boolean {
+  if (s.viewMode !== "anatomy" && s.viewMode !== "risk") return true;
+  return s.xray.wallOpacity < 0.98 || s.xray.cutDepth > 0;
+}
+
 function scenarioParams(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey): HeartParams {
   return { ...DEFAULT_PARAMS, ...scenarios[scenario].params };
 }
@@ -113,6 +133,12 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
 
   toggles: { ...DEFAULT_TOGGLES },
   toggleStructure: (key) => set((s) => ({ toggles: { ...s.toggles, [key]: !s.toggles[key] } })),
+
+  xray: { wallOpacity: 1, cutDepth: 0 },
+  setXRay: (patch) => set((s) => ({ xray: { ...s.xray, ...patch } })),
+
+  offline: false,
+  setOffline: (offline) => set({ offline }),
 
   liveOutputs: null,
   setLiveOutputs: (o) => set({ liveOutputs: o }),

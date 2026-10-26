@@ -9,12 +9,14 @@ import { BloodFlowParticles } from "./BloodFlowParticles";
 import { ConductionSystem } from "./ConductionSystem";
 import { ValveIndicators } from "./ValveIndicators";
 import { CHAMBERS } from "./heartGeometry";
-import { useHeartStore } from "../../state/store";
+import { showsInterior, useHeartStore } from "../../state/store";
+import { CutPlane } from "./CutPlane";
+import { RiskLegend } from "./RiskLegend";
 
 function ChamberLabels() {
   const toggles = useHeartStore((s) => s.toggles);
-  const viewMode = useHeartStore((s) => s.viewMode);
-  if (!toggles.labels || viewMode === "anatomy") return null;
+  const interior = useHeartStore((s) => showsInterior(s));
+  if (!toggles.labels || !interior) return null;
   return (
     <>
       {CHAMBERS.map((c) => (
@@ -43,6 +45,7 @@ export function Heart3D() {
         <pointLight position={[0, 0.2, 2.6]} intensity={14} distance={9} decay={2} color="#ffe8e0" />
         <Suspense fallback={null}>
           <SimulationDriver />
+          <CutPlane />
           <group rotation={[0, 0, 0]}>
             <HeartChambers />
             <Vessels />
@@ -54,6 +57,7 @@ export function Heart3D() {
         </Suspense>
         <OrbitControls enablePan minDistance={1.8} maxDistance={9} target={[0, 0, 0]} makeDefault />
       </Canvas>
+      <RiskLegend />
     </div>
   );
 }

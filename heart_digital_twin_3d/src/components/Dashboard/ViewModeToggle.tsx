@@ -7,6 +7,7 @@ const MODES: { id: ViewMode; label: string; hint: string }[] = [
   { id: "pressure", label: "Pressure", hint: "Colours each chamber by how much pressure is in it" },
   { id: "valves", label: "Valves", hint: "Highlights the valves opening and closing" },
   { id: "electrical", label: "Electrical signal", hint: "Shows the signal that starts each heartbeat" },
+  { id: "risk", label: "Risk", hint: "Colours the heart by the predicted chance of heart disease" },
 ];
 
 const TOGGLES: { id: keyof StructureToggles; label: string }[] = [
@@ -23,6 +24,9 @@ export function ViewModeToggle() {
   const setViewMode = useHeartStore((s) => s.setViewMode);
   const toggles = useHeartStore((s) => s.toggles);
   const toggleStructure = useHeartStore((s) => s.toggleStructure);
+  const xray = useHeartStore((s) => s.xray);
+  const setXRay = useHeartStore((s) => s.setXRay);
+  const closedHeart = viewMode === "anatomy" || viewMode === "risk";
 
   return (
     <div className="panel viewer-toolbar">
@@ -48,6 +52,39 @@ export function ViewModeToggle() {
             {t.label}
           </label>
         ))}
+      </div>
+      <div className="viewer-xray">
+        <span className="viewer-toggles-title">Look inside:</span>
+        <label className="xray-slider" title={closedHeart ? "" : "Applies to the Outside and Risk views"}>
+          See-through wall
+          <input
+            type="range"
+            min={0}
+            max={90}
+            step={1}
+            disabled={!closedHeart}
+            value={Math.round((1 - xray.wallOpacity) * 100)}
+            onChange={(e) => setXRay({ wallOpacity: 1 - Number(e.target.value) / 100 })}
+          />
+          <output>{Math.round((1 - xray.wallOpacity) * 100)}%</output>
+        </label>
+        <label className="xray-slider" title="Slices the heart from the front, like a dissection">
+          Cut away front
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(xray.cutDepth * 100)}
+            onChange={(e) => setXRay({ cutDepth: Number(e.target.value) / 100 })}
+          />
+          <output>{Math.round(xray.cutDepth * 100)}%</output>
+        </label>
+        {(xray.wallOpacity < 1 || xray.cutDepth > 0) && (
+          <button type="button" className="btn btn-small" onClick={() => setXRay({ wallOpacity: 1, cutDepth: 0 })}>
+            Close up
+          </button>
+        )}
       </div>
     </div>
   );

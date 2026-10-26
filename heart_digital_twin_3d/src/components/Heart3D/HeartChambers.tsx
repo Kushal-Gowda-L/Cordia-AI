@@ -11,7 +11,8 @@ import {
 } from "./heartGeometry";
 import { createMuscleBumpTexture, createMuscleColorTexture } from "./muscleTexture";
 import { liveOutputsRef } from "../../simulation/liveOutputsRef";
-import { useHeartStore } from "../../state/store";
+import { showsInterior, useHeartStore } from "../../state/store";
+import { CoronaryArteries, RiskTerritory } from "./RiskOverlay";
 
 const REFERENCE_VOLUME: Record<string, number> = { LV: 170, RV: 180, LA: 55, RA: 50 };
 const STRAIN_COLOR = new THREE.Color("#ff2a18");
@@ -44,6 +45,8 @@ function pressureColor(p: number, maxP: number): THREE.Color {
 export function HeartChambers() {
   const viewMode = useHeartStore((s) => s.viewMode);
   const toggles = useHeartStore((s) => s.toggles);
+  const wallOpacity = useHeartStore((s) => s.xray.wallOpacity);
+  const interior = useHeartStore((s) => showsInterior(s));
 
   const poolRefs = useRef<Record<string, THREE.Mesh | null>>({});
   const wallRefs = useRef<Record<string, THREE.Group | null>>({});
@@ -138,8 +141,12 @@ export function HeartChambers() {
     }
   });
 
-  const cutawayVisible = toggles.chambers && viewMode !== "anatomy";
-  const showIntactMyocardium = viewMode === "anatomy";
+  // The closed heart (Outside, Risk) hides the chambers unless the wall is
+  // made see-through or sliced away, which reveals the same interior the
+  // opened views show.
+  const showIntactMyocardium = viewMode === "anatomy" || viewMode === "risk";
+  const cutawayVisible = toggles.chambers && interior;
+  const seeThrough = wallOpacity < 0.98;
   // The blood pool shows how full each chamber is, but it must not hide the
   // cutaway interior -- papillary muscles, chordae and the endocardial
   // surface all sit inside it -- so it stays translucent.
@@ -160,8 +167,14 @@ export function HeartChambers() {
             bumpScale={0.012}
             roughness={0.6}
             metalness={0.05}
+            side={THREE.DoubleSide}
+            transparent={seeThrough}
+            opacity={wallOpacity}
+            depthWrite={!seeThrough}
           />
         </mesh>
+        {toggles.vessels && <CoronaryArteries />}
+        {viewMode === "risk" && <RiskTerritory geometry={myoGeometry} />}
         </group>
       )}
 
