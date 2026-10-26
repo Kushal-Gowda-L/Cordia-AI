@@ -7,6 +7,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { createMuscleBumpTexture } from "./muscleTexture";
 import { useHeartStore } from "../../state/store";
 import { ModelValves } from "./ModelValves";
+import { ModelChambers } from "./ModelChambers";
 import { SHELL_CUT } from "./shellCut";
 import { ARTERY, ATRIUM, AURICLE, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
 
@@ -329,7 +330,9 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
   // Look inside: fade the wall and/or cut it open; the valves then show within.
   const wall = useHeartStore((s) => s.xray.wallOpacity);
   const cut = useHeartStore((s) => s.xray.cutDepth > 0);
-  const showValves = useHeartStore((s) => s.toggles.valves) && (wall < 0.97 || cut);
+  const lookingInside = wall < 0.97 || cut;
+  const showValves = useHeartStore((s) => s.toggles.valves) && lookingInside;
+  const showChambers = useHeartStore((s) => s.toggles.chambers) && lookingInside;
   const seeThrough = wall < 0.98;
 
   useFrame(() => {
@@ -460,6 +463,7 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
           </group>
         ))}
       </group>
+      {showChambers && <ModelChambers style="tissue" />}
       {showValves && <ModelValves style="tissue" />}
       {shadow && <ContactShadows position={[0, -1.7, 0]} opacity={0.5} blur={2.6} scale={5} far={3.2} color="#000000" />}
     </group>

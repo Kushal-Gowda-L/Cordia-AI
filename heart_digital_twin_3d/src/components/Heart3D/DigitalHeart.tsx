@@ -19,6 +19,7 @@ import {
   type V3,
 } from "./RealisticHeart";
 import { ModelValves } from "./ModelValves";
+import { ModelChambers } from "./ModelChambers";
 import { SHELL_CUT } from "./shellCut";
 
 /**
@@ -561,6 +562,7 @@ export function DigitalHeart({ look }: { look: "hologram" | "lowpoly" }) {
           ))}
         {look === "lowpoly" && low && <points geometry={low.upperNodes}>{nodeMat}</points>}
       </group>
+      {toggles.chambers && <ModelChambers style={look === "lowpoly" ? "mesh" : "glow"} />}
       {toggles.valves && <ModelValves style="glow" />}
       {toggles.bloodFlow && <DigitalFlow />}
     </group>
