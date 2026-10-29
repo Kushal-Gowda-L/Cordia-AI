@@ -138,6 +138,18 @@ activity state and intensity add exercise on top, and SpO2 sets the blood oxygen
 reuse the workstation's risk models and team-dataset loader, so any CSV row becomes the patient here
 too.
 
+## Heart model on its own (`heart.html`)
+
+[`heart.html`](heart.html) ([`src/heartpage/`](src/heartpage/)) shows just the heart, in the
+`reference` look matched to the Cordia dashboard render: its own great vessels
+(`REFERENCE_VESSELS`: a tall red aortic arch with three branches, the blue pulmonary trunk crossing in
+front and ending in an open cut end, the superior vena cava behind, the inferior vena cava running
+down beneath the heart, open pulmonary vein stubs), a larger maroon right atrium, warm fat across the
+front and broad golden coronary arteries. It turns 360° on the platform with the dashboard's labels,
+tools and Front / Left / Right / Back views (`public/heart/`); *Look Inside* cuts the front away to
+show the four valves opening and closing and the chambers filling, with the labels switching to the
+valves. The heart-rate chip sets how fast it beats.
+
 ## Cordia Heart Twin workstation (`workstation.html`)
 
 A third page, [`workstation.html`](workstation.html), is the Cordia Heart Twin workstation (patient

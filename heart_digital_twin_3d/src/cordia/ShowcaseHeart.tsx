@@ -2,7 +2,7 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { bodyPoint, dirOf, RealisticHeart } from "../components/Heart3D/RealisticHeart";
+import { bodyPoint, dirOf, RealisticHeart, type HeartLook } from "../components/Heart3D/RealisticHeart";
 import { ShellCutDriver } from "../components/Heart3D/shellCut";
 import { VIEWS } from "../components/Heart3D/Heart3D";
 
@@ -15,7 +15,7 @@ import { VIEWS } from "../components/Heart3D/Heart3D";
 
 export type ShowcaseView = "front" | "left" | "right" | "back";
 
-interface Label {
+export interface Label {
   name: string;
   tone: "red" | "blue" | "gold";
   /** Point on the structure, in the heart model's own coordinates. */
@@ -26,9 +26,12 @@ interface Label {
 const toWorld = (p: THREE.Vector3) => p.clone().multiplyScalar(0.88).add(new THREE.Vector3(0, -0.02, 0));
 const onBody = (polar: number, az: number) => bodyPoint(dirOf(polar, az)).multiplyScalar(1.02);
 
-const LABELS: Label[] = (
-  [
-  { name: "Aorta", tone: "red", at: new THREE.Vector3(0.1, 1.3, -0.12) },
+const world = (labels: Label[]) => labels.map((l) => ({ ...l, at: toWorld(l.at) }));
+const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+/** The outside of the illustrated heart (the dashboard). */
+export const LABELS: Label[] = world([
+  { name: "Aorta", tone: "red", at: v3(0.1, 1.3, -0.12) },
   { name: "Superior Vena Cava", tone: "blue", at: new THREE.Vector3(-0.5, 1.02, 0.08) },
   { name: "Pulmonary Artery", tone: "blue", at: new THREE.Vector3(0.52, 0.97, 0.05) },
   { name: "Left Atrium", tone: "red", at: new THREE.Vector3(0.58, 0.36, 0.26) },
@@ -36,13 +39,46 @@ const LABELS: Label[] = (
   { name: "Left Ventricle", tone: "red", at: onBody(1.8, 0.5) },
   { name: "Right Ventricle", tone: "blue", at: onBody(1.8, 2.2) },
   { name: "Coronary Artery", tone: "gold", at: onBody(1.72, 1.47) },
-  ] as Label[]
-).map((l) => ({ ...l, at: toWorld(l.at) }));
+] as Label[]);
+
+/** The outside of the reference heart (heart.html), whose great vessels are drawn differently. */
+export const REFERENCE_LABELS: Label[] = world([
+  { name: "Aorta", tone: "red", at: v3(-0.02, 1.3, 0.14) },
+  { name: "Superior Vena Cava", tone: "blue", at: v3(-0.54, 1.2, 0.08) },
+  { name: "Pulmonary Artery", tone: "blue", at: v3(0.58, 0.95, 0.38) },
+  { name: "Left Atrium", tone: "red", at: v3(0.58, 0.36, 0.26) },
+  { name: "Right Atrium", tone: "blue", at: v3(-0.6, 0.3, 0.2) },
+  { name: "Left Ventricle", tone: "red", at: onBody(1.8, 0.5) },
+  { name: "Right Ventricle", tone: "blue", at: onBody(1.8, 2.2) },
+  { name: "Coronary Artery", tone: "gold", at: onBody(1.72, 1.47) },
+] as Label[]);
+
+/** Inside, once the front is cut away: the four valves and both ventricles. */
+export const INSIDE_LABELS: Label[] = world([
+  { name: "Aortic Valve", tone: "red", at: v3(0.01, 0.26, 0.02) },
+  { name: "Pulmonary Valve", tone: "blue", at: v3(-0.12, 0.3, 0.36) },
+  { name: "Mitral Valve", tone: "red", at: v3(0.3, 0.1, -0.18) },
+  { name: "Tricuspid Valve", tone: "blue", at: v3(-0.36, 0.06, 0.04) },
+  { name: "Left Ventricle", tone: "red", at: v3(0.3, -0.42, -0.1) },
+  { name: "Right Ventricle", tone: "blue", at: v3(-0.2, -0.33, 0.16) },
+] as Label[]);
 
 const CENTER = new THREE.Vector3(0, -0.18, 0);
 
 /** Projects each label's point to the screen and lays the labels out in two columns beside the heart. */
-function LabelLayout({ els, lines, show }: { els: (HTMLDivElement | null)[]; lines: (SVGPolylineElement | null)[]; show: boolean }) {
+function LabelLayout({
+  labels,
+  center: CENTER,
+  els,
+  lines,
+  show,
+}: {
+  labels: Label[];
+  center: THREE.Vector3;
+  els: (HTMLDivElement | null)[];
+  lines: (SVGPolylineElement | null)[];
+  show: boolean;
+}) {
   const { camera, size } = useThree();
   const v = useMemo(() => new THREE.Vector3(), []);
   const toCam = useMemo(() => new THREE.Vector3(), []);
@@ -61,7 +97,7 @@ function LabelLayout({ els, lines, show }: { els: (HTMLDivElement | null)[]; lin
     side.crossVectors(toCam, camera.up).normalize().multiplyScalar(1.1).add(CENTER);
     const half = Math.abs(project(side).x - c.x);
     const gap = Math.min(half + 24, w / 2 - 12);
-    const items = LABELS.map((l, i) => {
+    const items = labels.map((l, i) => {
       const s = project(l.at);
       // Facing the viewer, or round the back of the heart?
       const facing = v.copy(l.at).sub(CENTER).normalize().dot(toCam) > -0.15;
@@ -163,19 +199,19 @@ function Lights() {
 }
 
 /** Moves the camera to a requested view and distance. */
-function Rig({ view, distance }: { view: { name: ShowcaseView; n: number }; distance: number }) {
+function Rig({ view, distance, center }: { view: { name: ShowcaseView; n: number }; distance: number; center: THREE.Vector3 }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update: () => void } | null;
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   useEffect(() => {
     const [theta, phi] = VIEWS[view.name];
-    const t = controls?.target ?? CENTER;
+    const t = controls?.target ?? center;
     // Step back on narrow (portrait) screens so the whole heart fits across.
     const r = distance * Math.pow(Math.max(1, 1.1 / aspect), 0.75);
     camera.position.set(t.x + r * Math.sin(phi) * Math.sin(theta), t.y + r * Math.cos(phi), t.z + r * Math.sin(phi) * Math.cos(theta));
     camera.lookAt(t);
     controls?.update();
-  }, [view, distance, aspect, camera, controls]);
+  }, [view, distance, aspect, camera, controls, center]);
   return null;
 }
 
@@ -184,12 +220,20 @@ export function ShowcaseHeart({
   labels,
   view,
   distance,
+  look = "illustrated",
+  labelSet = LABELS,
+  targetY = CENTER.y,
 }: {
   rotate: boolean;
   labels: boolean;
   view: { name: ShowcaseView; n: number };
   distance: number;
+  look?: HeartLook;
+  labelSet?: Label[];
+  /** Height the camera looks at and orbits around: higher shows more of the vessels above. */
+  targetY?: number;
 }) {
+  const center = useMemo(() => new THREE.Vector3(0, targetY, 0), [targetY]);
   const els = useRef<(HTMLDivElement | null)[]>([]);
   const lines = useRef<(SVGPolylineElement | null)[]>([]);
   return (
@@ -199,7 +243,7 @@ export function ShowcaseHeart({
         <Suspense fallback={null}>
           <ShellCutDriver />
           <group position={[0, 0.1, 0]}>
-            <RealisticHeart look="illustrated" shadow={false} />
+            <RealisticHeart look={look} shadow={false} />
           </group>
           <Platform />
         </Suspense>
@@ -209,21 +253,21 @@ export function ShowcaseHeart({
           enableDamping
           minDistance={2.4}
           maxDistance={8}
-          target={[CENTER.x, CENTER.y, CENTER.z]}
+          target={[center.x, center.y, center.z]}
           autoRotate={rotate}
           autoRotateSpeed={2}
         />
-        <Rig view={view} distance={distance} />
-        <LabelLayout els={els.current} lines={lines.current} show={labels} />
+        <Rig view={view} distance={distance} center={center} />
+        <LabelLayout labels={labelSet} center={center} els={els.current} lines={lines.current} show={labels} />
       </Canvas>
       {labels && (
         <>
           <svg className="leaders" aria-hidden="true">
-            {LABELS.map((l, i) => (
+            {labelSet.map((l, i) => (
               <polyline key={l.name} ref={(e) => void (lines.current[i] = e)} className={`tone-${l.tone}`} points="0,0 0,0" />
             ))}
           </svg>
-          {LABELS.map((l, i) => (
+          {labelSet.map((l, i) => (
             <div key={l.name} ref={(e) => void (els.current[i] = e)} className={`part-label tone-${l.tone}`}>
               <i />
               {l.name}

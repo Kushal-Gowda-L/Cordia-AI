@@ -9,7 +9,7 @@ import { useHeartStore } from "../../state/store";
 import { ModelValves } from "./ModelValves";
 import { ModelChambers } from "./ModelChambers";
 import { SHELL_CUT } from "./shellCut";
-import { ARTERY, ATRIUM, AURICLE, ILLUSTRATED, MUSCLE, VEIN, fbm, paintTissue, roughenSurface, type TissuePalette } from "./tissue";
+import { ARTERY, ATRIUM, AURICLE, ILLUSTRATED, MUSCLE, REFERENCE, VEIN, fbm, paintTissue, roughenSurface, type TissuePalette } from "./tissue";
 
 /**
  * The "Realistic heart" view: the closed heart as an anatomical model,
@@ -177,15 +177,21 @@ export function makeCoronaries(widthScale = 1): { arteries: THREE.BufferGeometry
   return { arteries: mergeGeometries(arteries)!, veins: mergeGeometries(veins)! };
 }
 
-export function makeBody(pal: TissuePalette = MUSCLE, fatBand = 0.55): THREE.BufferGeometry {
+/**
+ * `frontFat` spreads warm fat over the front of the ventricles (the reference
+ * look), `grooveShade` sets how dark the muscle grooves are painted.
+ */
+export function makeBody(pal: TissuePalette = MUSCLE, fatBand = 0.55, frontFat = 0, grooveShade = 0.5): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 200, 150);
   const pos = geo.attributes.position;
   const d = new THREE.Vector3();
   const dirY = new Float32Array(pos.count);
+  const dirZ = new Float32Array(pos.count);
   const groove = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     d.fromBufferAttribute(pos, i).normalize();
     dirY[i] = d.y;
+    dirZ[i] = d.z;
     groove[i] = grooveAt(d);
     const p = bodyPoint(d);
     pos.setXYZ(i, p.x, p.y, p.z);
@@ -199,13 +205,15 @@ export function makeBody(pal: TissuePalette = MUSCLE, fatBand = 0.55): THREE.Buf
     geo,
     pal,
     7,
-    (i) => fatBand * Math.exp(-Math.pow((dirY[i] - 0.32) / 0.12, 2)),
+    (i) =>
+      fatBand * Math.exp(-Math.pow((dirY[i] - 0.32) / 0.12, 2)) +
+      frontFat * THREE.MathUtils.smoothstep(dirZ[i], -0.1, 0.8) * Math.exp(-Math.pow((dirY[i] - 0.05) / 0.38, 2)),
     () => 0,
     (q) => 1.12 - 0.35 * THREE.MathUtils.smoothstep(-q.y, 0.7, 1.6)
   );
   const col = geo.attributes.color;
   for (let i = 0; i < pos.count; i++) {
-    const k = 1 - 0.5 * groove[i];
+    const k = 1 - grooveShade * groove[i];
     col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
   }
   return geo;
@@ -271,6 +279,29 @@ export const GREAT_VESSELS: GreatVessel[] = [
   { name: "Right pulmonary veins", points: [[0.05, 0.42, -0.5], [-0.35, 0.44, -0.58], [-0.62, 0.48, -0.6]], radius: 0.066, open: true },
 ];
 
+/**
+ * The great vessels as the Cordia dashboard render draws them (reference
+ * look): a tall, broad aortic arch with three long branches; the blue
+ * pulmonary trunk crossing in front of it and ending in an open cut end on
+ * the heart's left; the superior vena cava rising behind on the right; the
+ * inferior vena cava running down beneath the heart; and the pulmonary veins
+ * leaving the left atrium as short open stubs. The roots stay where the
+ * valves sit (aortic at the aorta's start, pulmonary at the trunk's).
+ */
+export const REFERENCE_VESSELS: GreatVessel[] = [
+  { name: "Aorta", points: [[0.02, 0.2, 0.0], [-0.06, 0.62, 0.08], [-0.06, 1.02, 0.04], [0.08, 1.3, -0.08], [0.36, 1.32, -0.22], [0.56, 1.06, -0.36], [0.6, 0.55, -0.48], [0.58, -0.35, -0.55]], radius: 0.23, open: true },
+  { name: "Brachiocephalic trunk", points: [[-0.04, 1.24, -0.02], [-0.1, 1.5, -0.02], [-0.14, 1.78, -0.02]], radius: 0.085, taper: 0.85, open: true },
+  { name: "Left common carotid", points: [[0.17, 1.36, -0.12], [0.18, 1.6, -0.12], [0.18, 1.84, -0.12]], radius: 0.068, taper: 0.9, open: true },
+  { name: "Left subclavian", points: [[0.36, 1.34, -0.24], [0.42, 1.58, -0.26], [0.5, 1.8, -0.28]], radius: 0.072, taper: 0.9, open: true },
+  { name: "Pulmonary trunk", points: [[-0.12, 0.25, 0.36], [-0.06, 0.58, 0.44], [0.1, 0.8, 0.44], [0.4, 0.9, 0.42], [0.72, 0.94, 0.4], [0.9, 0.95, 0.38]], radius: 0.17, taper: 0.92, open: true },
+  { name: "Right pulmonary artery", points: [[-0.02, 0.76, 0.36], [-0.2, 0.92, 0.0], [-0.42, 0.95, -0.24], [-0.66, 0.92, -0.3]], radius: 0.1, taper: 0.9, open: true },
+  { name: "Superior vena cava", points: [[-0.5, 0.42, -0.06], [-0.53, 0.9, -0.1], [-0.53, 1.36, -0.1]], radius: 0.145, open: true },
+  { name: "Inferior vena cava", points: [[-0.42, 0.06, -0.14], [-0.44, -0.5, -0.1], [-0.44, -1.32, -0.08]], radius: 0.13, open: false },
+  { name: "Left upper pulmonary vein", points: [[0.45, 0.52, -0.3], [0.7, 0.6, -0.16], [0.94, 0.66, -0.04]], radius: 0.075, open: true },
+  { name: "Left lower pulmonary vein", points: [[0.45, 0.36, -0.36], [0.72, 0.38, -0.22], [0.98, 0.4, -0.1]], radius: 0.072, open: true },
+  { name: "Right pulmonary veins", points: [[0.05, 0.42, -0.5], [-0.35, 0.44, -0.58], [-0.62, 0.48, -0.6]], radius: 0.066, open: true },
+];
+
 export function makeVessel(v: GreatVessel, pal: TissuePalette = VEINS.has(v.name) ? VEIN : ARTERY) {
   const curve = new THREE.CatmullRomCurve3(v.points.map((p) => new THREE.Vector3(...p)));
   const tubular = 64;
@@ -312,37 +343,63 @@ export const AURICLES: { position: V3; rotation: V3; scale: V3; seed: number }[]
   { position: [0.52, 0.34, 0.22], rotation: [0.4, 0.55, -0.9], scale: [0.34, 0.08, 0.2], seed: 4 }, // left auricle
 ];
 
+// The reference look's atria: a larger right atrium bulging forward on the
+// heart's right, with a broad crinkled auricle, as in the dashboard render.
+const REFERENCE_LOBES: typeof LOBES = [
+  { position: [-0.55, 0.3, 0.1], rotation: [0, 0, 0.2], scale: [0.36, 0.34, 0.36], seed: 1 },
+  LOBES[1],
+];
+const REFERENCE_AURICLES: typeof AURICLES = [
+  { position: [-0.46, 0.44, 0.36], rotation: [0.6, -0.4, 0.7], scale: [0.4, 0.1, 0.26], seed: 3 },
+  AURICLES[1],
+];
+
 export function chamberScale(volume: number, reference: number): number {
   return THREE.MathUtils.clamp(Math.pow(Math.max(volume, 0) / reference, 0.6), 0.5, 1.3);
 }
 
-/** Oxygen-poor vessels, drawn blue in the illustrated look. */
+/** Oxygen-poor vessels, drawn blue in the illustrated and reference looks. */
 const BLUE_VESSELS = new Set(["Superior vena cava", "Inferior vena cava", "Pulmonary trunk", "Left pulmonary artery", "Right pulmonary artery"]);
 const PULMONARY_VEINS = new Set(["Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
+
+export type HeartLook = "anatomical" | "illustrated" | "reference";
 
 /**
  * `look` "anatomical" is the sculpted-anatomy styling above; "illustrated"
  * recolours the same anatomy as a textbook render (cordia.html): glossy red
  * muscle, blue venae cavae and pulmonary arteries, a violet right atrium and
- * golden coronary arteries.
+ * golden coronary arteries. "reference" (heart.html) goes further toward the
+ * Cordia dashboard render: its own great vessels (REFERENCE_VESSELS), warm
+ * fat across the front, a maroon right atrium and broad golden coronaries.
  */
-export function RealisticHeart({ shadow = true, look = "anatomical" }: { shadow?: boolean; look?: "anatomical" | "illustrated" }) {
-  const ill = look === "illustrated";
-  const body = useMemo(() => (ill ? makeBody(ILLUSTRATED.muscle, 0.8) : makeBody()), [ill]);
+export function RealisticHeart({ shadow = true, look = "anatomical" }: { shadow?: boolean; look?: HeartLook }) {
+  const ill = look !== "anatomical";
+  const ref = look === "reference";
+  const pal = ref ? REFERENCE : ILLUSTRATED;
+  const body = useMemo(
+    () => (ref ? makeBody(REFERENCE.muscle, 0.7, 0.32, 0.22) : ill ? makeBody(ILLUSTRATED.muscle, 0.8) : makeBody()),
+    [ill, ref]
+  );
   const vessels = useMemo(
     () =>
-      GREAT_VESSELS.map((v) =>
-        ill
-          ? makeVessel(v, BLUE_VESSELS.has(v.name) ? ILLUSTRATED.blue : PULMONARY_VEINS.has(v.name) ? ILLUSTRATED.leftAtrium : ILLUSTRATED.artery)
-          : makeVessel(v)
+      (ref ? REFERENCE_VESSELS : GREAT_VESSELS).map((v) =>
+        ill ? makeVessel(v, BLUE_VESSELS.has(v.name) ? pal.blue : PULMONARY_VEINS.has(v.name) ? pal.leftAtrium : pal.artery) : makeVessel(v)
       ),
-    [ill]
+    [ill, ref, pal]
   );
   // LOBES and AURICLES are listed right side first.
-  const sidePal = (i: number) => (i === 0 ? ILLUSTRATED.rightAtrium : ILLUSTRATED.leftAtrium);
-  const lobes = useMemo(() => LOBES.map((l, i) => (ill ? makeLobe(l.scale, 0.05, l.seed, sidePal(i)) : makeLobe(l.scale, 0.05, l.seed))), [ill]);
-  const flaps = useMemo(() => AURICLES.map((l, i) => (ill ? makeFlap(l.scale, l.seed, sidePal(i)) : makeFlap(l.scale, l.seed))), [ill]);
-  const coronaries = useMemo(() => makeCoronaries(ill ? 1.35 : 1), [ill]);
+  const sidePal = (i: number) => (i === 0 ? pal.rightAtrium : pal.leftAtrium);
+  const lobeDefs = ref ? REFERENCE_LOBES : LOBES;
+  const auricleDefs = ref ? REFERENCE_AURICLES : AURICLES;
+  const lobes = useMemo(
+    () => lobeDefs.map((l, i) => (ill ? makeLobe(l.scale, 0.05, l.seed, sidePal(i)) : makeLobe(l.scale, 0.05, l.seed))),
+    [ill, pal, lobeDefs]
+  );
+  const flaps = useMemo(
+    () => auricleDefs.map((l, i) => (ill ? makeFlap(l.scale, l.seed, sidePal(i)) : makeFlap(l.scale, l.seed))),
+    [ill, pal, auricleDefs]
+  );
+  const coronaries = useMemo(() => makeCoronaries(ref ? 1.45 : ill ? 1.35 : 1), [ill, ref]);
   const bump = useMemo(() => createMuscleBumpTexture(), []);
 
   const ventricles = useRef<THREE.Group>(null);
@@ -428,13 +485,13 @@ export function RealisticHeart({ shadow = true, look = "anatomical" }: { shadow?
               {skin}
             </mesh>
             {cavity && <mesh geometry={body}>{cavity}</mesh>}
-            <mesh geometry={coronaries.arteries}>{vesselSkin(ill ? "#f2b233" : "#7d0711")}</mesh>
+            <mesh geometry={coronaries.arteries}>{vesselSkin(ref ? "#f7b52c" : ill ? "#f2b233" : "#7d0711")}</mesh>
             <mesh geometry={coronaries.veins}>{vesselSkin(ill ? "#3d64c8" : "#c4bcc4")}</mesh>
           </group>
         </group>
       </group>
       <group ref={atria} position={[0, 0.4, -0.1]}>
-        {LOBES.map((l, i) => (
+        {lobeDefs.map((l, i) => (
           <mesh
             key={i}
             geometry={lobes[i]}
@@ -445,12 +502,12 @@ export function RealisticHeart({ shadow = true, look = "anatomical" }: { shadow?
           </mesh>
         ))}
         {cavity &&
-          LOBES.map((l, i) => (
+          lobeDefs.map((l, i) => (
             <mesh key={`cavity-${i}`} geometry={lobes[i]} position={[l.position[0], l.position[1] - 0.4, l.position[2] + 0.1]} rotation={l.rotation}>
               {cavity}
             </mesh>
           ))}
-        {AURICLES.map((l, i) => (
+        {auricleDefs.map((l, i) => (
           <mesh
             key={`auricle-${i}`}
             geometry={flaps[i]}

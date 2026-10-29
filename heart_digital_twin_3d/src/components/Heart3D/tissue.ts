@@ -72,6 +72,17 @@ export const ILLUSTRATED = {
   blue: { dark: "#12306e", base: "#2457b4", bright: "#4f8ae4", fat: "#94b8f0" } as TissuePalette,
 };
 
+// The reference look (heart.html), matched to the Cordia dashboard render:
+// deeper scarlet muscle with warm orange fat across the front, a dark
+// maroon right atrium, bright glossy red arteries and saturated blue veins.
+export const REFERENCE = {
+  muscle: { dark: "#7a0a13", base: "#bd1b25", bright: "#ef4a3a", fat: "#ee8a3a" } as TissuePalette,
+  rightAtrium: { dark: "#3a0d1c", base: "#6c1d31", bright: "#9b3a4b", fat: "#b4606c" } as TissuePalette,
+  leftAtrium: { dark: "#8a1019", base: "#c3222b", bright: "#ec4d44", fat: "#f19882" } as TissuePalette,
+  artery: { dark: "#a3101a", base: "#de252c", bright: "#ff5f4f", fat: "#ff9c84" } as TissuePalette,
+  blue: { dark: "#14388a", base: "#2a62c8", bright: "#4f8ee6", fat: "#3f78d6" } as TissuePalette,
+};
+
 const ca = new THREE.Color();
 const cb = new THREE.Color();
 
