@@ -9,7 +9,7 @@ import { useHeartStore } from "../../state/store";
 import { ModelValves } from "./ModelValves";
 import { ModelChambers } from "./ModelChambers";
 import { SHELL_CUT } from "./shellCut";
-import { ARTERY, ATRIUM, AURICLE, MUSCLE, VEIN, fbm, paintTissue, roughenSurface } from "./tissue";
+import { ARTERY, ATRIUM, AURICLE, ILLUSTRATED, MUSCLE, VEIN, fbm, paintTissue, roughenSurface, type TissuePalette } from "./tissue";
 
 /**
  * The "Realistic heart" view: the closed heart as an anatomical model,
@@ -147,17 +147,18 @@ export function surfacePolyline(points: [number, number][], lift: number, spacin
 }
 
 /** The coronary tree as two merged meshes laid over the ventricles: arteries and veins. */
-export function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE.BufferGeometry } {
+export function makeCoronaries(widthScale = 1): { arteries: THREE.BufferGeometry; veins: THREE.BufferGeometry } {
   const arteries: THREE.BufferGeometry[] = [];
   const veins: THREE.BufferGeometry[] = [];
   for (const v of growTree()) {
     if (v.points.length < 2) continue;
     // Ride on the surface, half proud of it.
-    const pts = surfacePolyline(v.points, v.width * 0.45);
+    const width = v.width * widthScale;
+    const pts = surfacePolyline(v.points, width * 0.45);
     const curve = new THREE.CatmullRomCurve3(pts);
     const tubular = Math.max(8, pts.length * 2);
     const radial = 8;
-    const geo = new THREE.TubeGeometry(curve, tubular, v.width, radial, false);
+    const geo = new THREE.TubeGeometry(curve, tubular, width, radial, false);
     // Taper each vessel toward its tip.
     const pos = geo.attributes.position;
     const p = new THREE.Vector3();
@@ -176,7 +177,7 @@ export function makeCoronaries(): { arteries: THREE.BufferGeometry; veins: THREE
   return { arteries: mergeGeometries(arteries)!, veins: mergeGeometries(veins)! };
 }
 
-export function makeBody(): THREE.BufferGeometry {
+export function makeBody(pal: TissuePalette = MUSCLE, fatBand = 0.55): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 200, 150);
   const pos = geo.attributes.position;
   const d = new THREE.Vector3();
@@ -196,9 +197,9 @@ export function makeBody(): THREE.BufferGeometry {
   // muscle grooves and the apex are the darkest red.
   paintTissue(
     geo,
-    MUSCLE,
+    pal,
     7,
-    (i) => 0.55 * Math.exp(-Math.pow((dirY[i] - 0.32) / 0.12, 2)),
+    (i) => fatBand * Math.exp(-Math.pow((dirY[i] - 0.32) / 0.12, 2)),
     () => 0,
     (q) => 1.12 - 0.35 * THREE.MathUtils.smoothstep(-q.y, 0.7, 1.6)
   );
@@ -211,7 +212,7 @@ export function makeBody(): THREE.BufferGeometry {
 }
 
 /** An auricle: a thin, flap-like pouch with a scalloped, crinkled edge. */
-export function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
+export function makeFlap(scale: V3, seed: number, pal: TissuePalette = AURICLE): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 64, 40);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
@@ -224,12 +225,12 @@ export function makeFlap(scale: V3, seed: number): THREE.BufferGeometry {
   }
   geo.computeVertexNormals();
   roughenSurface(geo, 0.008, seed);
-  paintTissue(geo, AURICLE, seed * 17, (_i, p) => 0.3 * fbm(p, 4, 2, seed));
+  paintTissue(geo, pal, seed * 17, (_i, p) => 0.3 * fbm(p, 4, 2, seed));
   return geo;
 }
 
 /** A soft lobe (atrium or auricle): a squashed, slightly lumpy sphere. */
-export function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometry {
+export function makeLobe(scale: V3, lumps = 0.06, seed = 1, pal: TissuePalette = ATRIUM): THREE.BufferGeometry {
   const geo = new THREE.SphereGeometry(1, 48, 36);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
@@ -240,7 +241,7 @@ export function makeLobe(scale: V3, lumps = 0.06, seed = 1): THREE.BufferGeometr
   }
   geo.computeVertexNormals();
   roughenSurface(geo, 0.01, seed);
-  paintTissue(geo, ATRIUM, seed * 13, (_i, p) => 0.3 * fbm(p, 3, 2, seed));
+  paintTissue(geo, pal, seed * 13, (_i, p) => 0.3 * fbm(p, 3, 2, seed));
   return geo;
 }
 
@@ -270,7 +271,7 @@ export const GREAT_VESSELS: GreatVessel[] = [
   { name: "Right pulmonary veins", points: [[0.05, 0.42, -0.5], [-0.35, 0.44, -0.58], [-0.62, 0.48, -0.6]], radius: 0.066, open: true },
 ];
 
-export function makeVessel(v: GreatVessel) {
+export function makeVessel(v: GreatVessel, pal: TissuePalette = VEINS.has(v.name) ? VEIN : ARTERY) {
   const curve = new THREE.CatmullRomCurve3(v.points.map((p) => new THREE.Vector3(...p)));
   const tubular = 64;
   const radial = 28;
@@ -291,7 +292,7 @@ export function makeVessel(v: GreatVessel) {
     geo.computeVertexNormals();
   }
   roughenSurface(geo, v.radius * 0.06, v.radius * 100);
-  paintTissue(geo, VEINS.has(v.name) ? VEIN : ARTERY, v.points.length * 5 + v.radius * 50, () => 0.45);
+  paintTissue(geo, pal, v.points.length * 5 + v.radius * 50, () => 0.45);
   // A rim at the cut end gives the vessel wall visible thickness.
   const end = curve.getPointAt(1);
   const tangent = curve.getTangentAt(1);
@@ -315,12 +316,33 @@ export function chamberScale(volume: number, reference: number): number {
   return THREE.MathUtils.clamp(Math.pow(Math.max(volume, 0) / reference, 0.6), 0.5, 1.3);
 }
 
-export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
-  const body = useMemo(() => makeBody(), []);
-  const vessels = useMemo(() => GREAT_VESSELS.map(makeVessel), []);
-  const lobes = useMemo(() => LOBES.map((l) => makeLobe(l.scale, 0.05, l.seed)), []);
-  const flaps = useMemo(() => AURICLES.map((l) => makeFlap(l.scale, l.seed)), []);
-  const coronaries = useMemo(() => makeCoronaries(), []);
+/** Oxygen-poor vessels, drawn blue in the illustrated look. */
+const BLUE_VESSELS = new Set(["Superior vena cava", "Inferior vena cava", "Pulmonary trunk", "Left pulmonary artery", "Right pulmonary artery"]);
+const PULMONARY_VEINS = new Set(["Left upper pulmonary vein", "Left lower pulmonary vein", "Right pulmonary veins"]);
+
+/**
+ * `look` "anatomical" is the sculpted-anatomy styling above; "illustrated"
+ * recolours the same anatomy as a textbook render (cordia.html): glossy red
+ * muscle, blue venae cavae and pulmonary arteries, a violet right atrium and
+ * golden coronary arteries.
+ */
+export function RealisticHeart({ shadow = true, look = "anatomical" }: { shadow?: boolean; look?: "anatomical" | "illustrated" }) {
+  const ill = look === "illustrated";
+  const body = useMemo(() => (ill ? makeBody(ILLUSTRATED.muscle, 0.8) : makeBody()), [ill]);
+  const vessels = useMemo(
+    () =>
+      GREAT_VESSELS.map((v) =>
+        ill
+          ? makeVessel(v, BLUE_VESSELS.has(v.name) ? ILLUSTRATED.blue : PULMONARY_VEINS.has(v.name) ? ILLUSTRATED.leftAtrium : ILLUSTRATED.artery)
+          : makeVessel(v)
+      ),
+    [ill]
+  );
+  // LOBES and AURICLES are listed right side first.
+  const sidePal = (i: number) => (i === 0 ? ILLUSTRATED.rightAtrium : ILLUSTRATED.leftAtrium);
+  const lobes = useMemo(() => LOBES.map((l, i) => (ill ? makeLobe(l.scale, 0.05, l.seed, sidePal(i)) : makeLobe(l.scale, 0.05, l.seed))), [ill]);
+  const flaps = useMemo(() => AURICLES.map((l, i) => (ill ? makeFlap(l.scale, l.seed, sidePal(i)) : makeFlap(l.scale, l.seed))), [ill]);
+  const coronaries = useMemo(() => makeCoronaries(ill ? 1.35 : 1), [ill]);
   const bump = useMemo(() => createMuscleBumpTexture(), []);
 
   const ventricles = useRef<THREE.Group>(null);
@@ -356,10 +378,10 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
     <meshPhysicalMaterial
       vertexColors
       color="#ffffff"
-      roughness={0.42}
+      roughness={ill ? 0.32 : 0.42}
       metalness={0}
-      clearcoat={0.6}
-      clearcoatRoughness={0.3}
+      clearcoat={ill ? 1 : 0.6}
+      clearcoatRoughness={ill ? 0.12 : 0.3}
       bumpMap={bump}
       bumpScale={0.004}
       transparent={seeThrough}
@@ -406,8 +428,8 @@ export function RealisticHeart({ shadow = true }: { shadow?: boolean }) {
               {skin}
             </mesh>
             {cavity && <mesh geometry={body}>{cavity}</mesh>}
-            <mesh geometry={coronaries.arteries}>{vesselSkin("#7d0711")}</mesh>
-            <mesh geometry={coronaries.veins}>{vesselSkin("#c4bcc4")}</mesh>
+            <mesh geometry={coronaries.arteries}>{vesselSkin(ill ? "#f2b233" : "#7d0711")}</mesh>
+            <mesh geometry={coronaries.veins}>{vesselSkin(ill ? "#3d64c8" : "#c4bcc4")}</mesh>
           </group>
         </group>
       </group>

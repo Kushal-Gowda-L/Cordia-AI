@@ -6,15 +6,16 @@ import react from "@vitejs/plugin-react";
 // to load a patient's record. In dev, /api is proxied to that backend.
 // `npm run build:standalone` (mode "standalone") makes a self-contained copy
 // with relative paths and no backend, for any static host: dist-standalone/.
-// Three pages share one codebase: index.html (the clinical twin),
-// digital.html (the holographic twin) and workstation.html (the Cordia Heart
-// Twin workstation with the 3D twin as its heart).
+// Four pages share one codebase: index.html (the clinical twin),
+// digital.html (the holographic twin), workstation.html (the Cordia Heart
+// Twin workstation with the 3D twin as its heart) and cordia.html (the Cordia AI
+// dashboard with the illustrated, labelled heart).
 export default defineConfig(({ command, mode }) => ({
   plugins: [react()],
   base: mode === "standalone" ? "./" : command === "build" ? "/twin/" : "/",
   build: {
     ...(mode === "standalone" ? { outDir: "dist-standalone" } : {}),
-    rollupOptions: { input: { main: "index.html", digital: "digital.html", workstation: "workstation.html" } },
+    rollupOptions: { input: { main: "index.html", digital: "digital.html", workstation: "workstation.html", cordia: "cordia.html" } },
   },
   server: {
     port: 5173,

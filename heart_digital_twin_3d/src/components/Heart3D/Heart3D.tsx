@@ -19,7 +19,7 @@ import { ShellCutDriver } from "./shellCut";
 import { DIGITAL, VARIANT } from "../../variant";
 
 // Preset angles (around the vertical, and down from it) for the view buttons.
-const VIEWS = { front: [0.35, 1.25], back: [Math.PI + 0.3, 1.25], left: [1.6, 1.2], four: [0.05, 1.3] } as const;
+export const VIEWS = { front: [0.35, 1.25], back: [Math.PI + 0.3, 1.25], left: [1.6, 1.2], right: [-1.45, 1.2], four: [0.05, 1.3] } as const;
 
 /** Moves the camera to a preset view when one is requested. */
 function CameraRig() {

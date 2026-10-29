@@ -119,6 +119,25 @@ in real time at any frame rate (long frames are integrated in small steps), and 
 speeds up or slows the beat smoothly from where it is. In the holographic views the coronary arteries
 and mesh nodes take the predicted risk's colour (green, amber, red).
 
+## Cordia AI dashboard (`cordia.html`)
+
+A fourth page, [`cordia.html`](cordia.html) ([`src/cordia/`](src/cordia/)), is the Cordia AI dashboard:
+the project's sidebar (Overview, Digital Twin Heart, Patient Monitoring, Risk Assessment, Dataset &
+Model, Heart Simulation, Patient History, Preventive Care, About Project), the heart in the middle
+and the live rail on the right (Live Parameters with heart rate, blood pressure, SpO2 and breathing
+rate, a simulation status, the ECG and the Simulation Controls).
+
+The heart is the realistic twin in an illustrated look (`RealisticHeart look="illustrated"`): glossy
+red muscle, blue venae cavae and pulmonary arteries, a violet right atrium and golden coronary
+arteries, on a glowing platform. It turns 360°, beats with the simulation, and carries leader-line
+labels (aorta, superior vena cava, pulmonary artery, atria, ventricles, coronary artery) that follow
+each structure as it turns ([`ShowcaseHeart.tsx`](src/cordia/ShowcaseHeart.tsx)). Rotate, Zoom,
+Reset View, Toggle Labels and the Front / Left / Right / Back thumbnails (`public/cordia/`) move the
+camera. Heart rate and blood pressure are the patient's baseline (shared with the risk pages); the
+activity state and intensity add exercise on top, and SpO2 sets the blood oxygen. The other pages
+reuse the workstation's risk models and team-dataset loader, so any CSV row becomes the patient here
+too.
+
 ## Cordia Heart Twin workstation (`workstation.html`)
 
 A third page, [`workstation.html`](workstation.html), is the Cordia Heart Twin workstation (patient

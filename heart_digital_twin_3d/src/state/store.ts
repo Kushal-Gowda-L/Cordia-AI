@@ -19,7 +19,7 @@ export type ViewMode =
   | "lowpoly"
   | "dual";
 
-export type CameraView = "front" | "back" | "left" | "four";
+export type CameraView = "front" | "back" | "left" | "right" | "four";
 
 /** Views showing a whole, closed model heart (no cutaway), which start turning when chosen. */
 export function isModelView(m: ViewMode): boolean {

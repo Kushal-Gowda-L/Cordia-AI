@@ -61,6 +61,17 @@ export const AURICLE: TissuePalette = { dark: "#c27a68", base: "#e2a28d", bright
 export const ARTERY: TissuePalette = { dark: "#6c0a12", base: "#a3161f", bright: "#c9303a", fat: "#d77b72" };
 export const VEIN: TissuePalette = { dark: "#5a0c18", base: "#8a1b2b", bright: "#a8394a", fat: "#c98088" };
 
+// The illustrated look (cordia.html), after a textbook-style render: glossy
+// scarlet muscle with golden fat along the grooves, oxygen-poor vessels and
+// the right atrium in blue-violet, bright red aorta.
+export const ILLUSTRATED = {
+  muscle: { dark: "#8c0c16", base: "#c41e27", bright: "#ec4a40", fat: "#efb05a" } as TissuePalette,
+  rightAtrium: { dark: "#3c2668", base: "#62408f", bright: "#9566b6", fat: "#b98fd0" } as TissuePalette,
+  leftAtrium: { dark: "#8e1420", base: "#bb2f35", bright: "#e0574f", fat: "#eba08a" } as TissuePalette,
+  artery: { dark: "#93101a", base: "#d0242c", bright: "#ff5a4f", fat: "#f39a86" } as TissuePalette,
+  blue: { dark: "#12306e", base: "#2457b4", bright: "#4f8ae4", fat: "#94b8f0" } as TissuePalette,
+};
+
 const ca = new THREE.Color();
 const cb = new THREE.Color();
 
