@@ -729,3 +729,410 @@ body,
   background: #fbeceb;
   color: var(--danger);
 }
+
+.offline-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ------------------------------------------------- risk view legend */
+.risk-legend {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  max-width: 250px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(5, 10, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e8eef5;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.risk-legend-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.risk-legend-pct {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+.risk-legend .tone-low { color: #5fd08c; }
+.risk-legend .tone-mid { color: #f2c04a; }
+.risk-legend .tone-high { color: #ff6b5e; }
+.risk-legend-ramp {
+  position: relative;
+  height: 8px;
+  margin: 10px 0 2px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #2e9e5b 0%, #2e9e5b 20%, #e0a020 50%, #e2302a 80%, #e2302a 100%);
+}
+.risk-legend-ramp span {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 14px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.risk-legend-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #9fb0c2;
+}
+.risk-legend p {
+  margin: 6px 0 0;
+  color: #b9c6d4;
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .risk-legend p { display: none; }
+}
+
+/* ------------------------------------------- see-through / cutaway */
+.viewer-xray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+.xray-slider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+.xray-slider input {
+  width: 120px;
+}
+.xray-slider input:disabled {
+  opacity: 0.4;
+}
+.xray-slider output {
+  min-width: 32px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.btn-small {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------ dataset mode */
+.source-toggle {
+  padding-bottom: 12px;
+}
+.drop-zone {
+  display: block;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 8px;
+  padding: 14px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--surface-2);
+}
+.drop-zone b {
+  color: var(--primary);
+}
+.drop-zone.dragging,
+.drop-zone:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.drop-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dataset-meta,
+.model-stats {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.dataset-meta b,
+.model-stats b {
+  color: var(--text);
+}
+.full-select,
+.column-matches select,
+.input-row select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.patient-summary .panel-label {
+  margin-top: 12px;
+}
+.row-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.row-picker input {
+  width: 84px;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.row-of {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.factor-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.factor-list .up {
+  color: var(--danger);
+}
+.factor-list .down {
+  color: var(--success);
+}
+.other-columns summary,
+.column-matches summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--primary);
+  padding: 8px 0 4px;
+}
+.column-matches .unit {
+  color: var(--text-dim);
+}
+.read-notes {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------- realistic view, turntable */
+.heart3d-canvas.studio {
+  background: radial-gradient(ellipse at 50% 40%, #5a5d62 0%, #44474c 55%, #2c2e32 100%);
+  border-color: var(--border-strong);
+}
+.rotate-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(5, 10, 20, 0.6);
+  color: #e8eef5;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rotate-toggle span {
+  font-size: 14px;
+  line-height: 1;
+}
+.rotate-toggle.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.rotate-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------- holographic twin (digital.html) */
+.theme-digital {
+  --bg: #030c1f;
+  --surface: #071a38;
+  --surface-2: #0a2147;
+  --border: #15345f;
+  --border-strong: #23508a;
+  --text: #dcefff;
+  --text-dim: #8eb2d8;
+  --primary: #2fa8ff;
+  --primary-hover: #63c0ff;
+  --primary-soft: #0d2c55;
+  --danger: #ff6b7a;
+  --warn: #ffb547;
+  --success: #46d68c;
+  background: radial-gradient(ellipse at 50% 0%, #0b2a5c 0%, var(--bg) 60%);
+  color: var(--text);
+}
+.theme-digital input,
+.theme-digital select,
+.theme-digital textarea {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.theme-digital .panel {
+  box-shadow: 0 0 0 1px rgba(47, 168, 255, 0.06), 0 6px 24px rgba(0, 20, 60, 0.45);
+}
+.heart3d-canvas.holo {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(80, 170, 255, 0) 0 118px, rgba(80, 170, 255, 0.07) 119px 120px),
+    radial-gradient(ellipse at 50% 45%, #0e3a7a 0%, #072656 45%, #020b1e 100%);
+  border-color: #1d4b8a;
+}
+.holo-hud {
+  position: absolute;
+  bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(90, 190, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(3, 18, 44, 0.55);
+  color: #bfe6ff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+.holo-hud b {
+  color: #ffffff;
+  font-weight: 500;
+}
+.holo-hud-left {
+  left: 10px;
+}
+.holo-hud-right {
+  right: 10px;
+}
+.holo-hud-title {
+  color: #5cc8ff;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+.holo-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #24507f;
+  margin-right: 2px;
+}
+.holo-open {
+  color: #ffffff;
+}
+.holo-open .holo-dot {
+  background: #7fe8ff;
+  box-shadow: 0 0 6px #7fe8ff;
+}
+.holo-label {
+  color: #bff0ff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border: 1px solid rgba(110, 200, 255, 0.5);
+  border-radius: 3px;
+  background: rgba(3, 18, 44, 0.6);
+}
+.reference-gallery {
+  margin: 0 16px 16px;
+}
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.reference-card {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+}
+.reference-card.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), 0 0 18px rgba(47, 168, 255, 0.35);
+}
+.reference-card img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  display: block;
+}
+.reference-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+  font-size: 13px;
+}
+.reference-card figcaption span {
+  color: var(--text-dim);
+}
+.reference-card figcaption .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .holo-hud {
+    font-size: 10px;
+  }
+  .holo-hud-right {
+    display: none;
+  }
+}
+.theme-digital .app-banner {
+  background: #0a2147;
+  color: #9cc8f0;
+  border-color: var(--border);
+}
+.theme-digital .app-header {
+  background: rgba(4, 16, 38, 0.85);
+}
+.holo-hud .holo-low b {
+  color: #5fe3a1;
+}
+.holo-hud .holo-mid b {
+  color: #ffc34d;
+}
+.holo-hud .holo-high b {
+  color: #ff6b7a;
+}

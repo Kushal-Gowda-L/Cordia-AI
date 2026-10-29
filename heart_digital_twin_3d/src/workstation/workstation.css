@@ -1,0 +1,75 @@
+/* The Cordia Heart Twin workstation, styled as the original page (three panes: inputs | live heart | model read-outs), plus the 3D twin's own overlays. */
+:root{
+  /* Layout: three-pane clinical workstation - inputs | live WebGL heart | model read-outs */
+  --bg:#0d1117; --panel:#141a22; --panel2:#1b232e; --line:#2a3443; --text:#e6edf3; --muted:#8e9bab;
+  --accent:#ff5d6c; --accent2:#4fb3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --lime:#9bd35a;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f3f5f8;--panel:#ffffff;--panel2:#eef2f6;--line:#d5dce5;--text:#17202b;--muted:#566476;--ok:#1f883d;--warn:#9a6700;--bad:#cf222e;--lime:#4d8a1a;color-scheme:light}}
+:root[data-theme="light"]{--bg:#f3f5f8;--panel:#ffffff;--panel2:#eef2f6;--line:#d5dce5;--text:#17202b;--muted:#566476;--ok:#1f883d;--warn:#9a6700;--bad:#cf222e;--lime:#4d8a1a;color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 var(--f-ui)}
+#root,#app{height:100%}
+#app{display:grid;grid-template-columns:330px minmax(0,1fr) 300px}
+aside{background:var(--panel);overflow-y:auto;border-right:1px solid var(--line);padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+aside.right{border-right:0;border-left:1px solid var(--line)}
+h1{font-size:16px;margin:0 0 2px} h2{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 6px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:8px}
+.row{display:grid;grid-template-columns:1fr 64px;gap:6px;align-items:center;margin:5px 0}
+.row label{font-size:12px} .row output{font-variant-numeric:tabular-nums;text-align:right;font-size:12px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:3px}
+.sel{display:grid;grid-template-columns:1fr 120px;gap:6px;align-items:center;margin:5px 0;font-size:12px}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:12px}
+button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#stage{position:relative;overflow:hidden}
+#hud{position:absolute;left:12px;top:10px;font-size:12px;background:rgba(10,14,20,.55);color:#fff;padding:6px 10px;border-radius:8px}
+#hud b{font-size:15px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0}
+.card .t{font-size:11px;color:var(--muted)} .card .v{font:600 22px var(--f-num);font-variant-numeric:tabular-nums}
+.card .d{font-size:11px;margin-left:6px}
+.bar{height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:4px}.bar>i{display:block;height:100%}
+.chk{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:12px}
+canvas#traj{width:100%;height:150px;background:var(--panel2);border-radius:8px;border:1px solid var(--line)}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+.pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+@media (max-width: 1100px){#app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 62vh auto;height:auto}aside{border:0}}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+/* ---- added: the 3D digital twin in the stage */
+:root{--font-mono:var(--f-num);--primary:var(--accent2)}
+#stage{min-height:420px;background:#020b1e}
+#hud{z-index:2;pointer-events:none}
+.tag{font:600 9px var(--f-num);text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);border:1px solid currentColor;border-radius:4px;padding:0 3px;margin-left:3px;vertical-align:1px}
+.note.bad{color:var(--bad)}
+.row-nav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0;font-size:12px}
+.row-nav button{padding:3px 8px}
+.row-nav input{width:70px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:2px 4px;font:12px var(--f-num)}
+.dataset{border-bottom:1px solid var(--line);padding-bottom:6px}
+.chips{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:calc(100% - 24px);padding:4px;border-radius:12px;background:rgba(10,14,20,.6);border:1px solid rgba(255,255,255,.12);z-index:2}
+.chips button{background:transparent;border:1px solid transparent;color:#d6e2ee;border-radius:8px;padding:4px 9px}
+.chips button:hover{border-color:rgba(255,255,255,.3)}
+.chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.heart3d-canvas{position:absolute;inset:0;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#1b2a3d 0%,#0a1220 70%)}
+.heart3d-canvas.studio{background:radial-gradient(ellipse at 50% 40%,#5a5d62 0%,#44474c 55%,#2c2e32 100%)}
+.heart3d-canvas.holo{background:repeating-radial-gradient(circle at 50% 50%,rgba(80,170,255,0) 0 118px,rgba(80,170,255,.07) 119px 120px),radial-gradient(ellipse at 50% 45%,#0e3a7a 0%,#072656 45%,#020b1e 100%)}
+.rotate-toggle{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(5,10,20,.6);color:#e8eef5;font:inherit;font-size:12px;cursor:pointer;z-index:2}
+.rotate-toggle span{font-size:14px;line-height:1}
+.rotate-toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chamber-label{color:#eef3f8;font:11px var(--f-num);background:rgba(5,10,20,.6);padding:1px 6px;border-radius:4px;pointer-events:none;white-space:nowrap}
+.holo-label{color:#bff0ff;font:11px var(--f-num);white-space:nowrap;padding:1px 5px;border:1px solid rgba(110,200,255,.5);border-radius:3px;background:rgba(3,18,44,.6)}
+.risk-legend{position:absolute;right:10px;top:48px;max-width:240px;padding:10px 12px;border-radius:8px;background:rgba(5,10,20,.78);border:1px solid rgba(255,255,255,.12);color:#e8eef5;font-size:12px;line-height:1.4;z-index:2}
+.risk-legend-head{display:flex;gap:10px;align-items:center}
+.risk-legend-pct{font:600 22px var(--f-num)}
+.risk-legend .tone-low{color:#5fd08c}.risk-legend .tone-mid{color:#f2c04a}.risk-legend .tone-high{color:#ff6b5e}
+.risk-legend-ramp{position:relative;height:8px;margin:10px 0 2px;border-radius:4px;background:linear-gradient(90deg,#2e9e5b 0%,#2e9e5b 20%,#e0a020 50%,#e2302a 80%,#e2302a 100%)}
+.risk-legend-ramp span{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.risk-legend-scale{display:flex;justify-content:space-between;font:10.5px var(--f-num);color:#9fb0c2}
+.risk-legend p{margin:6px 0 0;color:#b9c6d4;font-size:11px}
+@media (max-width:1100px){#root,#app{height:auto}}
+@media (max-width:600px){.risk-legend p{display:none}aside{padding-inline:16px}#app{grid-template-rows:auto 72vh auto}#hud{top:48px;right:12px;font-size:11px}#hud b{font-size:13px}.chips button{padding:3px 7px;font-size:11px}}

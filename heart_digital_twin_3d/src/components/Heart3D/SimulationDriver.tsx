@@ -33,8 +33,15 @@ export function SimulationDriver() {
 
   useFrame((_, delta) => {
     if (!pausedRef.current) {
-      const dt = Math.min(delta, 0.05) * speedRef.current;
-      const outputs = simRef.current.step(dt, paramsRef.current);
+      // Real time even at low frame rates: a long frame is integrated in small
+      // steps (up to a quarter-second gap, e.g. after a tab switch).
+      let remaining = Math.min(delta, 0.25) * speedRef.current;
+      let outputs = simRef.current.step(Math.min(remaining, 0.008), paramsRef.current);
+      remaining -= 0.008;
+      while (remaining > 1e-6) {
+        outputs = simRef.current.step(Math.min(remaining, 0.008), paramsRef.current);
+        remaining -= 0.008;
+      }
       liveOutputsRef.current = outputs;
 
       accumRef.current += delta;

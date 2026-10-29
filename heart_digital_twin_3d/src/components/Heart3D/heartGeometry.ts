@@ -109,22 +109,87 @@ export function makeThickShell(o: ThickShellOptions): THREE.BufferGeometry {
   return geo;
 }
 
-/** Intact external myocardium, used by the "Anatomy" (uncut) view. */
+const MYO_RADIUS = 1.35;
+
+/** Maps a point on a sphere of radius MYO_RADIUS onto the heart's outer surface. */
+function deformMyocardium(v: THREE.Vector3): THREE.Vector3 {
+  const ny = v.y / MYO_RADIUS;
+  const apexTaper = ny < 0 ? 1 + 1.8 * Math.pow(-ny, 1.6) : 1;
+  let x = (v.x / apexTaper) * 0.85;
+  const z = (v.z / apexTaper) * 0.95;
+  x *= x < 0 ? 0.86 : 1.12; // LV side bulges more than the RV side
+  return v.set(x, v.y * 1.15 - 0.15, z);
+}
+
+/** Intact external myocardium, used by the "Outside" (uncut) and risk views. */
 export function makeMyocardiumGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(1.35, 48, 36);
+  const geo = new THREE.SphereGeometry(MYO_RADIUS, 64, 48);
   const p = geo.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i);
-    const ny = v.y / 1.35;
-    const apexTaper = ny < 0 ? 1 + 1.8 * Math.pow(-ny, 1.6) : 1;
-    let x = (v.x / apexTaper) * 0.85;
-    const z = (v.z / apexTaper) * 0.95;
-    x *= x < 0 ? 0.86 : 1.12; // LV side bulges more than the RV side
-    p.setXYZ(i, x, v.y * 1.15 - 0.15, z);
+    deformMyocardium(v.fromBufferAttribute(p, i));
+    p.setXYZ(i, v.x, v.y, v.z);
   }
   geo.computeVertexNormals();
   return geo;
+}
+
+/**
+ * A point on the outer heart surface, by direction: polar 0 is the top,
+ * PI the apex; azimuth PI/2 faces the viewer (anterior), smaller azimuths
+ * turn toward the heart's left (viewer's right). `lift` floats the point
+ * just off the surface so a vessel sits on the muscle rather than in it.
+ */
+export function myocardiumSurfacePoint(polar: number, azimuth: number, lift = 1.02): THREE.Vector3 {
+  const r = MYO_RADIUS * lift;
+  return deformMyocardium(
+    new THREE.Vector3(Math.sin(polar) * Math.cos(azimuth) * r, Math.cos(polar) * r, Math.sin(polar) * Math.sin(azimuth) * r)
+  );
+}
+
+export interface CoronarySpec {
+  name: string;
+  /** Path over the heart surface as [polar, azimuth] pairs (see myocardiumSurfacePoint). */
+  path: [number, number][];
+  radius: number;
+  /** Territory the risk overlay weights most heavily (the LAD's). */
+  primary: boolean;
+}
+
+// The coronary arteries on the outer surface. The left main splits into the
+// left anterior descending (down the front groove between the ventricles to
+// the apex, with a diagonal branch over the LV) and the circumflex (round
+// the left side in the groove between atrium and ventricle). The right
+// coronary runs round the right side in the same groove. Real coronary
+// paths vary between people; these follow the common right-dominant pattern.
+export const CORONARIES: CoronarySpec[] = [
+  {
+    name: "Left anterior descending artery",
+    path: [[0.95, 1.4], [1.3, 1.5], [1.75, 1.52], [2.2, 1.5], [2.6, 1.42], [2.95, 1.3]],
+    radius: 0.03,
+    primary: true,
+  },
+  { name: "Diagonal branch", path: [[1.4, 1.48], [1.7, 1.25], [2.05, 1.08], [2.35, 1.0]], radius: 0.02, primary: true },
+  { name: "Left circumflex artery", path: [[0.95, 1.4], [1.15, 1.1], [1.25, 0.6], [1.3, 0.0], [1.35, -0.6]], radius: 0.026, primary: false },
+  { name: "Right coronary artery", path: [[1.05, 1.72], [1.3, 2.05], [1.38, 2.6], [1.45, 3.2], [1.6, 3.9]], radius: 0.028, primary: false },
+  { name: "Marginal branch", path: [[1.36, 2.5], [1.8, 2.45], [2.2, 2.3]], radius: 0.018, primary: false },
+];
+
+/**
+ * How strongly each outer-surface vertex belongs to the left anterior
+ * descending artery's territory (front of the LV, front of the septum and
+ * the apex) -- the territory the risk overlay shades most. 0..1.
+ */
+export function ladTerritoryWeight(p: THREE.Vector3): number {
+  const smooth = (e0: number, e1: number, x: number) => {
+    const t = THREE.MathUtils.clamp((x - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const anterior = smooth(-0.35, 0.45, p.z);
+  const leftSide = smooth(-0.55, 0.15, p.x);
+  const ventricular = smooth(0.55, 0.05, p.y);
+  const apex = smooth(-0.9, -1.4, p.y);
+  return Math.max(anterior * leftSide * ventricular, apex);
 }
 
 /** Small ear-like atrial appendage (auricle), as labelled in the reference plate. */

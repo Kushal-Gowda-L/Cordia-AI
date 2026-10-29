@@ -9,18 +9,41 @@ import { InfoPanel } from "./components/Dashboard/InfoPanel";
 import { PatientSummary } from "./components/Dashboard/PatientSummary";
 import { InputControls } from "./components/Dashboard/InputControls";
 import { RiskCharts } from "./components/Dashboard/RiskCharts";
-import { DEFAULT_INPUTS, fetchPatientTwin, fetchWhatIf, twinRequestPath } from "./patient/patientTwin";
+import { SourceToggle } from "./components/Dashboard/SourceToggle";
+import { DatasetPanel } from "./components/Dashboard/DatasetPanel";
+import { ValveControls } from "./components/Dashboard/ValveControls";
+import { LiveControls } from "./components/Dashboard/LiveControls";
+import { PATIENT_VIEW } from "./patient/patientTwin";
+import { DEFAULT_INPUTS, fetchPatientTwin, fetchWhatIf, FORCE_OFFLINE, twinRequestPath, type PredictionInputs } from "./patient/patientTwin";
+import { buildOfflineTwin } from "./patient/offlineTwin";
 import { useHeartStore } from "./state/store";
+import { DIGITAL } from "./variant";
+import { ReferenceGallery } from "./components/Dashboard/ReferenceGallery";
 
 // Opened from an assessment (?patient=<id> or ?self=1) the twin starts from
 // that patient's record; opened on its own it starts from typical values.
+// Opened on its own with no reachable backend (e.g. plain `npm run dev`), or
+// with ?offline=1, it switches to the in-browser estimate instead of failing.
 function useInitialTwin() {
   useEffect(() => {
     const path = twinRequestPath();
-    const { loadTwin, setTwinError } = useHeartStore.getState();
-    const request = path ? fetchPatientTwin(path) : fetchWhatIf(DEFAULT_INPUTS);
-    request.then((twin) => loadTwin(twin, path !== null)).catch((e: Error) => setTwinError(e.message));
+    const { loadTwin, setTwinError, setOffline } = useHeartStore.getState();
+    const goOffline = () => {
+      setOffline(true);
+      loadTwin(buildOfflineTwin(DEFAULT_INPUTS, "Example patient"), false);
+    };
+    if (path) {
+      fetchPatientTwin(path).then((twin) => loadTwin(twin, true)).catch((e: Error) => setTwinError(e.message));
+    } else if (FORCE_OFFLINE) {
+      goOffline();
+    } else {
+      fetchWhatIf(DEFAULT_INPUTS).then((twin) => loadTwin(twin, false)).catch(goOffline);
+    }
   }, []);
+}
+
+function whatIf(inputs: PredictionInputs) {
+  return useHeartStore.getState().offline ? Promise.resolve(buildOfflineTwin(inputs)) : fetchWhatIf(inputs);
 }
 
 // Whenever the inputs differ from the ones the current estimate describes,
@@ -36,10 +59,10 @@ function useWhatIfSync() {
       const { beginWhatIf } = useHeartStore.getState();
       const id = beginWhatIf();
       const isCurrent = () => useHeartStore.getState().whatIfRequestId === id;
-      fetchWhatIf(requested)
+      whatIf(requested)
         .then((twin) => isCurrent() && useHeartStore.getState().applyWhatIf(twin, requested))
         .catch((e: Error) => isCurrent() && useHeartStore.getState().setWhatIfError(e.message));
-    }, 250);
+    }, useHeartStore.getState().offline ? 60 : 250);
     return () => clearTimeout(timer);
   }, [inputs, applied]);
 }
@@ -47,16 +70,26 @@ function useWhatIfSync() {
 export default function App() {
   useInitialTwin();
   useWhatIfSync();
+  const fromDataset = useHeartStore((s) => s.source === "dataset");
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${DIGITAL ? "theme-digital" : ""}`}>
       <Header />
       <div className="app-banner">
         Decision-support visualisation, simulated from the details shown &mdash; not a diagnostic measurement.
       </div>
       <main className="app-grid">
         <div className="app-grid-left">
-          <PatientSummary />
-          <InputControls />
+          {!PATIENT_VIEW && <SourceToggle />}
+          {fromDataset ? (
+            <DatasetPanel />
+          ) : (
+            <>
+              <PatientSummary />
+              <InputControls />
+            </>
+          )}
+          {!PATIENT_VIEW && <LiveControls />}
+          {!PATIENT_VIEW && <ValveControls />}
         </div>
         <div className="app-grid-center">
           <Heart3D />
@@ -70,6 +103,7 @@ export default function App() {
           <InfoPanel />
         </div>
       </main>
+      {DIGITAL && <ReferenceGallery />}
     </div>
   );
 }

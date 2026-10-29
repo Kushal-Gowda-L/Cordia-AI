@@ -13,6 +13,11 @@ export type ParamSources = Partial<Record<keyof HeartParams, string>>;
 /** Opened from a patient's own account (?self=1): simpler wording and only patient-friendly controls. */
 export const PATIENT_VIEW = new URLSearchParams(window.location.search).get("self") === "1";
 
+/** ?offline=1: skip the backend and use the in-browser estimate (src/patient/offlineTwin.ts). */
+// The standalone build (npm run build:standalone, for static hosting) has no backend at all.
+export const FORCE_OFFLINE =
+  import.meta.env.VITE_STANDALONE === "1" || new URLSearchParams(window.location.search).get("offline") === "1";
+
 /** The ten fields the risk model is trained on -- also the twin's controls. */
 export interface PredictionInputs {
   age: number;

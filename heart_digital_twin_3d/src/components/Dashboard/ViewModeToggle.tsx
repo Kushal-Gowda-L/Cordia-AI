@@ -1,12 +1,22 @@
-import { StructureToggles, useHeartStore, ViewMode } from "../../state/store";
+import { isModelView, StructureToggles, useHeartStore, ViewMode } from "../../state/store";
+import { DIGITAL } from "../../variant";
+
+const DIGITAL_MODES: { id: ViewMode; label: string; hint: string }[] = [
+  { id: "hologram", label: "Hologram", hint: "A glowing see-through heart with its fibres, arteries, valves and blood flow" },
+  { id: "lowpoly", label: "Low-poly mesh", hint: "The heart as a faceted digital mesh with its wireframe and nodes" },
+  { id: "dual", label: "Red + blue", hint: "The realistic heart and its digital twin side by side" },
+];
 
 const MODES: { id: ViewMode; label: string; hint: string }[] = [
+  ...(DIGITAL ? DIGITAL_MODES : []),
+  { id: "realistic", label: "Realistic heart", hint: "A lifelike outer heart, turning so you can see it from every side" },
   { id: "anatomy", label: "Outside", hint: "The heart as seen from outside" },
   { id: "chambers", label: "Inside", hint: "Opened up to show the four chambers" },
   { id: "bloodFlow", label: "Blood flow", hint: "Highlights blood moving through the heart" },
   { id: "pressure", label: "Pressure", hint: "Colours each chamber by how much pressure is in it" },
   { id: "valves", label: "Valves", hint: "Highlights the valves opening and closing" },
   { id: "electrical", label: "Electrical signal", hint: "Shows the signal that starts each heartbeat" },
+  { id: "risk", label: "Risk", hint: "Colours the heart by the predicted chance of heart disease" },
 ];
 
 const TOGGLES: { id: keyof StructureToggles; label: string }[] = [
@@ -23,6 +33,9 @@ export function ViewModeToggle() {
   const setViewMode = useHeartStore((s) => s.setViewMode);
   const toggles = useHeartStore((s) => s.toggles);
   const toggleStructure = useHeartStore((s) => s.toggleStructure);
+  const xray = useHeartStore((s) => s.xray);
+  const setXRay = useHeartStore((s) => s.setXRay);
+  const closedHeart = viewMode === "anatomy" || viewMode === "risk" || isModelView(viewMode);
 
   return (
     <div className="panel viewer-toolbar">
@@ -48,6 +61,39 @@ export function ViewModeToggle() {
             {t.label}
           </label>
         ))}
+      </div>
+      <div className="viewer-xray">
+        <span className="viewer-toggles-title">Look inside:</span>
+        <label className="xray-slider" title={closedHeart ? "Fades the heart wall so the valves inside show" : "Applies to the Outside, Risk and model-heart views"}>
+          See-through wall
+          <input
+            type="range"
+            min={0}
+            max={90}
+            step={1}
+            disabled={!closedHeart}
+            value={Math.round((1 - xray.wallOpacity) * 100)}
+            onChange={(e) => setXRay({ wallOpacity: 1 - Number(e.target.value) / 100 })}
+          />
+          <output>{Math.round((1 - xray.wallOpacity) * 100)}%</output>
+        </label>
+        <label className="xray-slider" title="Slices the heart open from the side facing you, like a dissection">
+          Cut away front
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(xray.cutDepth * 100)}
+            onChange={(e) => setXRay({ cutDepth: Number(e.target.value) / 100 })}
+          />
+          <output>{Math.round(xray.cutDepth * 100)}%</output>
+        </label>
+        {(xray.wallOpacity < 1 || xray.cutDepth > 0) && (
+          <button type="button" className="btn btn-small" onClick={() => setXRay({ wallOpacity: 1, cutDepth: 0 })}>
+            Close up
+          </button>
+        )}
       </div>
     </div>
   );

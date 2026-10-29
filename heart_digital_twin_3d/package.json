@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:standalone": "tsc -b && vite build --mode standalone"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",

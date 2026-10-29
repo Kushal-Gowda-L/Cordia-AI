@@ -6,6 +6,8 @@ function FieldControl({ field, baselineName }: { field: InputField; baselineName
   const value = useHeartStore((s) => s.inputs?.[field.key]);
   const baseline = useHeartStore((s) => s.recordInputs?.[field.key]);
   const setInput = useHeartStore((s) => s.setInput);
+  // The caution describes the server's model; the offline estimate doesn't share that flaw.
+  const offline = useHeartStore((s) => s.offline);
   if (value === undefined) return null;
 
   const changed = baseline !== undefined && baseline !== value;
@@ -28,7 +30,7 @@ function FieldControl({ field, baselineName }: { field: InputField; baselineName
         <span className="input-value">{shown}</span>
       </div>
       <div className="input-clinical">{PATIENT_VIEW && field.patient ? field.patient.hint : field.clinical}</div>
-      {field.caution && <div className="input-caution">{field.caution}</div>}
+      {field.caution && !offline && <div className="input-caution">{field.caution}</div>}
 
       {field.kind === "slider" ? (
         <input

@@ -1,0 +1,26 @@
+/* heart.html: the dashboard's heart stage on its own, full window. */
+.heart-page {
+  min-height: 100%; display: flex; flex-direction: column; padding: 22px 30px 24px; max-width: 1200px; margin: 0 auto;
+}
+html { background: radial-gradient(ellipse 70% 55% at 50% 50%, #0a2246 0%, #06142a 45%, var(--bg) 80%) fixed; }
+body { background: transparent; }
+.heart-page header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.heart-page h1 { margin: 0; font-size: 34px; font-weight: 700; }
+.heart-page header p { margin: 6px 0 0; color: #b9c7d8; font-size: 16.5px; }
+.heart-page .stage { min-height: 520px; }
+.heart-page .thumbs { max-width: 760px; margin: 0 auto; width: 100%; }
+.hr-chip {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--line2);
+  background: rgba(10, 22, 40, 0.85); font-size: 13px; color: #c9d6e6;
+}
+.hr-chip b { font-size: 20px; color: #fff; font-variant-numeric: tabular-nums; }
+.hr-chip input { width: 120px; accent-color: var(--red); }
+.beat { color: var(--red); font-size: 20px; animation: beat ease-out infinite; display: inline-block; }
+@keyframes beat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.25); } 30% { transform: scale(1); } }
+@media (max-width: 1080px) { .heart-page .stage { flex: none; height: 68vh; min-height: 0; } }
+@media (max-width: 640px) {
+  .heart-page { padding: 16px; }
+  .heart-page h1 { font-size: 26px; }
+  .heart-page header p { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .beat { animation: none; } }

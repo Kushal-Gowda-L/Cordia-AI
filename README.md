@@ -193,13 +193,18 @@ so a failure in any one library degrades gracefully rather than breaking the rep
 ## Interactive 3D digital twin (heart_digital_twin_3d/)
 
 A separate, standalone React + Three.js (React Three Fiber) application — not part of the
-FastAPI website, since it needs its own Vite dev server (`cd cordia_ai/heart_digital_twin_3d
-&& npm install && npm run dev`). A real-time, physiologically-simulated 3D heart: two full
+FastAPI website, since it needs its own Vite dev server (`cd heart_digital_twin_3d
+&& npm install && npm run dev`, then open http://localhost:5173). With no backend running it
+falls back to an in-browser offline risk estimate, so that command alone is enough to try it. It also
+runs on any heart dataset: load a CSV and it matches the columns to the heart, trains a risk model on
+the file's own outcome column in the browser, and lets you pick and edit rows (see
+`heart_digital_twin_3d/README.md`, "Use it with any dataset"). A real-time, physiologically-simulated 3D heart: two full
 ventricle simulations (time-varying elastance + valve flow resistors + Windkessel arterial
 compartments, integrated with RK4 every frame), synchronized ECG and electrical-conduction
 animation, a live Wiggers-style pressure graph, blood-flow particles whose speed is driven by
-the live valve flow rates, and six inspection views (outside, inside, blood flow, pressure,
-valves, electrical signal). Every dashboard number and every
+the live valve flow rates, seven inspection views (outside, inside, blood flow, pressure,
+valves, electrical signal, risk), a see-through wall and a front-to-back cutaway plane for
+looking inside the closed heart, and coronary arteries coloured by the predicted risk. Every dashboard number and every
 visual is a function of one shared simulation state — nothing is independently animated. Full
 write-up of the physiological model, what each slider does, and every stated simplification
 (procedural — not segmented-CT — anatomy; atria modeled as a pressure kick, not a full

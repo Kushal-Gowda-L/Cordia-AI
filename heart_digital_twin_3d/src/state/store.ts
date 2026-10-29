@@ -1,10 +1,36 @@
 import { create } from "zustand";
+import { DIGITAL } from "../variant";
 import { DEFAULT_PARAMS, HeartOutputs, HeartParams } from "../simulation/heartModel";
 import type { PatientTwin, Prediction, PredictionInputs, ScenarioKey, TwinScenario } from "../patient/patientTwin";
 import { steadyStateVitals, type Vitals } from "../simulation/steadyState";
 import { describeChanges, fieldFor, type InputKey } from "../patient/inputFields";
 
-export type ViewMode = "anatomy" | "chambers" | "bloodFlow" | "pressure" | "valves" | "electrical" | "cutaway";
+export type ViewMode =
+  | "anatomy"
+  | "chambers"
+  | "bloodFlow"
+  | "pressure"
+  | "valves"
+  | "electrical"
+  | "risk"
+  | "realistic"
+  // Holographic twin only (digital.html):
+  | "hologram"
+  | "lowpoly"
+  | "dual";
+
+export type CameraView = "front" | "back" | "left" | "right" | "four";
+
+/** Views showing a whole, closed model heart (no cutaway), which start turning when chosen. */
+export function isModelView(m: ViewMode): boolean {
+  return m === "realistic" || m === "hologram" || m === "lowpoly" || m === "dual";
+}
+
+/** How to look inside the closed heart: a see-through wall and a slicing plane. */
+export interface XRaySettings {
+  wallOpacity: number; // 0.1 (glass) .. 1 (solid) -- the outer heart muscle
+  cutDepth: number; // 0 (no cut) .. 1 (sliced to the back); front-to-back plane
+}
 
 export interface StructureToggles {
   chambers: boolean;
@@ -16,6 +42,23 @@ export interface StructureToggles {
 }
 
 export type TwinStatus = "loading" | "ready" | "error";
+
+/** Valve disease set directly with the valve controls, on top of whatever the data gives. */
+export interface ValveDisease {
+  aorticStenosis: number; // 0-1
+  mitralRegurgitation: number; // 0-1
+}
+const NO_VALVE_DISEASE: ValveDisease = { aorticStenosis: 0, mitralRegurgitation: 0 };
+
+/** Where the twin's inputs come from: the CordiaAI risk model's ten fields, or a loaded dataset. */
+export type TwinSource = "example" | "dataset";
+
+/** One dataset row turned into a twin (see src/dataset/). No prediction when no outcome column is chosen. */
+export interface DatasetTwin {
+  name: string;
+  prediction: Prediction | null;
+  scenarios: Record<ScenarioKey, TwinScenario>;
+}
 
 export interface RiskPoint {
   step: number;
@@ -37,8 +80,40 @@ interface HeartStore {
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
 
+  /** Turntable: the camera circles the heart continuously (360 degrees). */
+  autoRotate: boolean;
+  setAutoRotate: (on: boolean) => void;
+
+  /** A preset camera angle to move to; `n` changes on every request, so repeating one works. */
+  cameraView: { name: CameraView; n: number } | null;
+  setCameraView: (name: CameraView) => void;
+
   toggles: StructureToggles;
   toggleStructure: (key: keyof StructureToggles) => void;
+
+  xray: XRaySettings;
+  setXRay: (patch: Partial<XRaySettings>) => void;
+
+  // True when the backend couldn't be reached and the in-browser estimate
+  // (src/patient/offlineTwin.ts) stands in for the server's model.
+  offline: boolean;
+  setOffline: (offline: boolean) => void;
+
+  valves: ValveDisease;
+  setValves: (patch: Partial<ValveDisease>) => void;
+
+  // Live fine-tuning of the beating heart (heart rate, pressure, pumping
+  // strength); applied instantly, and cleared whenever the data changes.
+  tuning: Tuning;
+  setTuning: (patch: Tuning) => void;
+  clearTuning: () => void;
+
+  source: TwinSource;
+  // The example / patient twin as last loaded, so leaving dataset mode can return to it.
+  exampleSnapshot: { twin: PatientTwin; hasPatient: boolean } | null;
+  useExample: () => void;
+  loadDatasetTwin: (twin: DatasetTwin, label: string) => void;
+  applyDatasetTwin: (twin: DatasetTwin, label: string) => void;
 
   // Live simulation output, updated ~20Hz for the 2D dashboard/graphs.
   // The 3D scene reads simulation output every frame directly from the
@@ -83,15 +158,41 @@ const DEFAULT_TOGGLES: StructureToggles = {
   valves: true,
   bloodFlow: true,
   conduction: false,
-  labels: true,
+  // The holographic page starts clean; labels are one click away.
+  labels: !DIGITAL,
 };
 
-function scenarioParams(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey): HeartParams {
-  return { ...DEFAULT_PARAMS, ...scenarios[scenario].params };
+/** Whether the chambers inside are on show: always in the opened views, and in the closed ones once see-through or cut. */
+export function showsInterior(s: { viewMode: ViewMode; xray: XRaySettings }): boolean {
+  if (s.viewMode !== "anatomy" && s.viewMode !== "risk") return true;
+  return s.xray.wallOpacity < 0.98 || s.xray.cutDepth > 0;
 }
 
-function vitalsFor(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey): Vitals {
-  return steadyStateVitals(scenarioParams(scenarios, scenario));
+function scenarioParams(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey, valves = NO_VALVE_DISEASE): HeartParams {
+  return { ...DEFAULT_PARAMS, ...scenarios[scenario].params, ...valves };
+}
+
+function vitalsFor(scenarios: Record<ScenarioKey, TwinScenario>, scenario: ScenarioKey, valves = NO_VALVE_DISEASE): Vitals {
+  return steadyStateVitals(scenarioParams(scenarios, scenario, valves));
+}
+
+/** Hand adjustments to the live heart, on top of what the data gives (cleared when the data changes). */
+export type Tuning = Partial<Pick<HeartParams, "heartRate" | "systolicBP" | "contractility">>;
+
+function tuned(params: HeartParams, tuning: Tuning): HeartParams {
+  const p = { ...params, ...tuning };
+  if (tuning.systolicBP !== undefined) p.diastolicBP = Math.min(p.diastolicBP, p.systolicBP - 10);
+  return p;
+}
+
+/**
+ * Keeps hand adjustments across data edits, except where the data itself now
+ * sets that value differently (e.g. the blood pressure input was changed).
+ */
+function keepTuning(tuning: Tuning, before: HeartParams | null, after: HeartParams): Tuning {
+  const kept: Tuning = {};
+  for (const k of Object.keys(tuning) as (keyof Tuning)[]) if (before && before[k] === after[k]) kept[k] = tuning[k];
+  return kept;
 }
 
 function withPoint(history: RiskPoint[], risk: number, label: string): RiskPoint[] {
@@ -108,11 +209,97 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   speed: 1,
   setSpeed: (s) => set({ speed: s }),
 
-  viewMode: "chambers",
-  setViewMode: (m) => set({ viewMode: m }),
+  viewMode: DIGITAL ? "hologram" : "chambers",
+  // The model hearts are made to be looked at all round, so they start turning.
+  setViewMode: (m) => set(isModelView(m) ? { viewMode: m, autoRotate: true } : { viewMode: m }),
+
+  autoRotate: DIGITAL,
+  setAutoRotate: (on) => set({ autoRotate: on }),
+
+  cameraView: null,
+  setCameraView: (name) => set((s) => ({ cameraView: { name, n: (s.cameraView?.n ?? 0) + 1 }, autoRotate: false })),
 
   toggles: { ...DEFAULT_TOGGLES },
   toggleStructure: (key) => set((s) => ({ toggles: { ...s.toggles, [key]: !s.toggles[key] } })),
+
+  xray: { wallOpacity: 1, cutDepth: 0 },
+  setXRay: (patch) => set((s) => ({ xray: { ...s.xray, ...patch } })),
+
+  offline: false,
+  setOffline: (offline) => set({ offline }),
+
+  valves: { ...NO_VALVE_DISEASE },
+  setValves: (patch) => {
+    const { scenarios, scenario, tuning } = get();
+    const valves = { ...get().valves, ...patch };
+    if (!scenarios) return set({ valves });
+    const params = tuned(scenarioParams(scenarios, scenario, valves), tuning);
+    set({ valves, params, currentVitals: steadyStateVitals(params) });
+  },
+
+  tuning: {},
+  setTuning: (patch) => {
+    const { scenarios, scenario, valves } = get();
+    const tuning = { ...get().tuning, ...patch };
+    if (!scenarios) return set({ tuning });
+    const params = tuned(scenarioParams(scenarios, scenario, valves), tuning);
+    set({ tuning, params, currentVitals: steadyStateVitals(params) });
+  },
+  clearTuning: () => {
+    const { scenarios, scenario, valves } = get();
+    set(scenarios ? { tuning: {}, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) } : { tuning: {} });
+  },
+
+  source: "example",
+  exampleSnapshot: null,
+  useExample: () => {
+    const snap = get().exampleSnapshot;
+    set({ source: "example" });
+    if (snap) get().loadTwin(snap.twin, snap.hasPatient);
+  },
+
+  loadDatasetTwin: (twin, label) => {
+    const { valves, scenario } = get();
+    // Vitals of the row as it is in the data (no valve disease), so the cards show the effect of edits and valve changes.
+    const recordVitals = { rest: vitalsFor(twin.scenarios, "rest"), stress: vitalsFor(twin.scenarios, "stress") };
+    const risk = twin.prediction?.risk_percent;
+    set((s) => ({
+      source: "dataset",
+      twinStatus: "ready",
+      twinError: "",
+      patient: { name: twin.name, age: 0, sex: "" },
+      recordTwin: { patient: { name: twin.name, age: 0, sex: "" }, prediction: twin.prediction, scenarios: twin.scenarios } as unknown as PatientTwin,
+      recordInputs: null,
+      prediction: twin.prediction,
+      scenarios: twin.scenarios,
+      tuning: {},
+      params: scenarioParams(twin.scenarios, scenario, valves),
+      recordVitals,
+      currentVitals: vitalsFor(twin.scenarios, scenario, valves),
+      riskHistory: risk === undefined ? [] : withPoint([], risk, label),
+      // Discard any what-if for the example still in flight.
+      whatIfRequestId: s.whatIfRequestId + 1,
+      whatIfPending: false,
+      whatIfError: "",
+      resetToken: s.resetToken + 1,
+    }));
+  },
+
+  applyDatasetTwin: (twin, label) => {
+    const { valves, scenario, riskHistory, scenarios } = get();
+    const risk = twin.prediction?.risk_percent;
+    const base = scenarioParams(twin.scenarios, scenario, valves);
+    const tuning = keepTuning(get().tuning, scenarios && scenarioParams(scenarios, scenario, valves), base);
+    const params = tuned(base, tuning);
+    set({
+      prediction: twin.prediction,
+      scenarios: twin.scenarios,
+      tuning,
+      params,
+      currentVitals: steadyStateVitals(params),
+      riskHistory: risk === undefined ? riskHistory : withPoint(riskHistory, risk, label),
+    });
+  },
 
   liveOutputs: null,
   setLiveOutputs: (o) => set({ liveOutputs: o }),
@@ -140,6 +327,8 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const inputs = { ...twin.record };
     const recordVitals = { rest: vitalsFor(twin.scenarios, "rest"), stress: vitalsFor(twin.scenarios, "stress") };
     set((s) => ({
+      exampleSnapshot: { twin, hasPatient },
+      valves: { ...NO_VALVE_DISEASE },
       recordVitals,
       currentVitals: recordVitals.rest,
       twinStatus: "ready",
@@ -152,6 +341,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
       scenario: "rest",
+      tuning: {},
       params: scenarioParams(twin.scenarios, "rest"),
       riskHistory: withPoint([], twin.prediction.risk_percent, hasPatient ? "Recorded values" : "Starting values"),
       resetToken: s.resetToken + 1,
@@ -165,7 +355,7 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
     const toExercise = Boolean(fieldFor(key).exercise) && scenario === "rest" && scenarios !== null;
     set({
       inputs: { ...inputs, [key]: value },
-      ...(toExercise && scenarios ? { scenario: "stress" as const, params: scenarioParams(scenarios, "stress"), currentVitals: vitalsFor(scenarios, "stress") } : {}),
+      ...(toExercise && scenarios ? { scenario: "stress" as const, tuning: {}, params: scenarioParams(scenarios, "stress", get().valves), currentVitals: vitalsFor(scenarios, "stress", get().valves) } : {}),
     });
   },
 
@@ -176,13 +366,19 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   },
 
   applyWhatIf: (twin, requested) => {
-    const { appliedInputs, riskHistory, scenario } = get();
+    const { appliedInputs, riskHistory, scenario, valves, source } = get();
+    if (source !== "example") return;
     const label = appliedInputs ? describeChanges(appliedInputs, requested) : "Updated";
+    const base = scenarioParams(twin.scenarios, scenario, valves);
+    const prevScenarios = get().scenarios;
+    const tuning = keepTuning(get().tuning, prevScenarios && scenarioParams(prevScenarios, scenario, valves), base);
+    const params = tuned(base, tuning);
     set({
       prediction: twin.prediction,
       scenarios: twin.scenarios,
-      params: scenarioParams(twin.scenarios, scenario),
-      currentVitals: vitalsFor(twin.scenarios, scenario),
+      tuning,
+      params,
+      currentVitals: steadyStateVitals(params),
       appliedInputs: requested,
       whatIfPending: false,
       whatIfError: "",
@@ -195,7 +391,8 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
   setScenario: (scenario) => {
     const { scenarios } = get();
     if (!scenarios) return;
-    set({ scenario, params: scenarioParams(scenarios, scenario), currentVitals: vitalsFor(scenarios, scenario) });
+    const { valves } = get();
+    set({ scenario, tuning: {}, params: scenarioParams(scenarios, scenario, valves), currentVitals: vitalsFor(scenarios, scenario, valves) });
   },
 
   resetToRecord: () => {
@@ -208,6 +405,8 @@ export const useHeartStore = create<HeartStore>((set, get) => ({
       prediction: recordTwin.prediction,
       scenarios: recordTwin.scenarios,
       scenario: "rest",
+      valves: { ...NO_VALVE_DISEASE },
+      tuning: {},
       params: scenarioParams(recordTwin.scenarios, "rest"),
       currentVitals: recordVitals ? recordVitals.rest : null,
       riskHistory: changed
